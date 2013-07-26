@@ -6,7 +6,7 @@ ZeroSync is a student project taking place during the semester 13/14 at the Univ
 
 ## ZeroSync in a Hundred Words
 
-ZeroSync aims to combine features of Dropbox, Owncloud, Sparkleshare, BitTorrent Sync and other cloud sync products. Providing rapid file synchronization ranging from small to super large files. Additionally it will support versioning, secure communication, etc. The overall goal should be *zero effort*. A goal for the far future is to add a Dropbox like Datastore API.
+ZeroSync aims to combine features of Dropbox, Owncloud, Sparkleshare, BitTorrent Sync and other cloud sync products. Providing rapid file synchronization ranging from small to super large files. Additional features include version control, secure peer to peer communication, simple user management and one time access. The overall goal should be *zero effort* and *simplicity* for the user. Another goal for the far future is to add a Dropbox like Datastore API.
 ZeroSync is LGPLv3 open source.
 
 ## Motivation
