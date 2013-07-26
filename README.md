@@ -42,5 +42,4 @@ or write a mail to mail@zerosync.org
 ## Copying
 
 Free use of this software is granted under the terms of the GNU Lesser General
-Public License (LGPL). For details see the files `COPYING` and `COPYING.LESSER`
-included with the 0MQ distribution.
+Public License (LGPL). For details see the files `LICENSE` included with the ZeroSync distribution.
