@@ -39,3 +39,8 @@ or write a mail to mail@zerosync.org
 
 *Want to contribute?* Everyone is welcome! No matter which programming language or framework you prefer! Have a look at the wiki to get an overview of our tools and development processes.
 
+## Copying
+
+Free use of this software is granted under the terms of the GNU Lesser General
+Public License (LGPL). For details see the files `COPYING` and `COPYING.LESSER`
+included with the 0MQ distribution.
