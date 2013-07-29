@@ -34,7 +34,7 @@ True to the motto "Choose your own weapon!"
 
 ## Interested?
 
-For more information have a look the wiki https://github.com/sappo/libzs/wiki
+For more information have a look at the wiki https://github.com/sappo/libzs/wiki
 or write a mail to mail@zerosync.org
 
 *Want to contribute?* Everyone is welcome! No matter which programming language or framework you prefer! Have a look at the wiki to get an overview of our tools and development processes.
