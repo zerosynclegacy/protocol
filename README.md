@@ -5,7 +5,7 @@
 ZeroSync aims to combine features of Dropbox, Owncloud, Sparkleshare, BitTorrent Sync and other cloud sync products. Providing rapid file synchronization ranging from small to super large files. Additional features include version control, secure peer to peer communication, simple user management and one time access. The overall goal should be *zero effort* and *simplicity* for the user. Another goal for the far future is to add a Dropbox like Datastore API.
 ZeroSync is LGPLv3 open source.
 
-## About
+## About libzs
 
 The core library will heavily rely on the awesome messaging framework ØMQ. ØMQ comes with 40+ language bindings. This will allow other modules to use a broad variety of programming languages and frameworks to build services around the libzs core. 
 True to the motto "Choose your own weapon!"
