@@ -7,7 +7,7 @@ True to the motto "Choose your own weapon!"
 
 ## Basic Idea
 
-libzs will handle the peer to peer communication between participants. Participants are clients as well as servers. The difference between a client and a server is the way they store data. In the client's case that's obviously the filesystem and in server's case that will be some sort of content repository. 
+libzs will handle the peer to peer communication between participant. Participants are clients as well as servers. The difference between a client and a server is the way they store data. In the client's case that's obviously the file system and in server's case that will be some sort of content repository. Further the core will provide a secure channel to exchange files. An versioning mechanism which clients and servers can leverage. And some sort of discovery at least for the local LAN. The core library will be entirely written in C due to performance reasons.
 
 ## Interested?
 
