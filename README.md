@@ -7,7 +7,7 @@ True to the motto "Choose your own weapon!"
 
 ## Basic Idea
 
-libzs will handle the peer to peer communication between participant. Participants are clients as well as servers. The difference between a client and a server is the way they store data. In the client's case that's obviously the file system and in server's case that will be some sort of content repository. Further the core will provide a secure channel to exchange files. An versioning mechanism which clients and servers can leverage. And some sort of discovery at least for the local LAN. The core library will be entirely written in C due to performance reasons.
+The core library implements common functionality every component requires. Each component embedding the core will become an ZeroSync Participant. ZeroSync libzs is going to handle the peer to peer communication between participants. It also provides a simple version handling participants can leverage. Further it will pass updates from other participants to store and request to provide data to other participants. Components are different from a storing and providing data point of view. So the implementation for storing and providing data can’t be part of the core itself and needs to be implemented within the components. A desktop client for example stores and provides data by accessing the local file system, a mobile clients may do so as well. On the other hand a server has to store files in some sort of content repository due to the version control it offers and query them when requested to provide. Ans a web app doesn’t store any data but may request the metadata and single files for download. Another part of the core will be a discovery functionality which will work at least for the local LAN.
 
 ## Interested?
 
