@@ -1,4 +1,4 @@
-# ZeroSync core library
+# ZeroSync core protocol
 
 ## About libzs
 
