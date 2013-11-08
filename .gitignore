@@ -26,6 +26,7 @@ aclocal.m4
 autom4te.cache/
 config.log
 config.h.in
+config.h
 config.status
 config/
 configure
@@ -33,6 +34,7 @@ configure.ac
 depcomp
 missing
 install-sh
+stamp-h1
 doc/Makefile
 doc/Makefile.in
 doc/filemq.1
