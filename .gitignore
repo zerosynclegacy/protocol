@@ -17,3 +17,32 @@
 *.app
 
 *a.out
+
+# autoreconf
+INSTALL
+Makefile
+Makefile.in
+aclocal.m4
+autom4te.cache/
+config.log
+config.h.in
+config.status
+config/
+configure
+configure.ac
+depcomp
+missing
+install-sh
+doc/Makefile
+doc/Makefile.in
+doc/filemq.1
+doc/*.3
+libtool
+src/.deps/
+src/Makefile
+src/Makefile.in
+src/libfmq.pc
+src/platform.h
+src/platform.h.in
+src/platform.h.in~
+src/stamp-h1
