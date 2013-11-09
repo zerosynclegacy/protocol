@@ -1,3 +1,3 @@
 bin_PROGRAMS = zerosync
 zerosync_SOURCES = msg.c
-zerosync_LDFLAGS = -lzmq -lczmq -lzre
+zerosync_LDADD = -lzmq -lczmq -lzre
