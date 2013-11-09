@@ -30,7 +30,6 @@ config.h
 config.status
 config/
 configure
-configure.ac
 depcomp
 missing
 install-sh
