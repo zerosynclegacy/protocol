@@ -49,7 +49,7 @@ int main(int argc, char **argv){
     printf("Get the client party starting!\n");
     zctx_t *ctx = zctx_new();
     void *dealer = zsocket_new(ctx, ZMQ_DEALER);
-    zsocket_connect(dealer, "tcp://localhost");
+    zsocket_connect(dealer, "tcp://localhost:9989");
 
     give_credit(1000, dealer);
     printf("Start getting chunks.\n");
