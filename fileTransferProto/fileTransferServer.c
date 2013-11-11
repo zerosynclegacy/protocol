@@ -17,14 +17,21 @@ FILE* fileHandle(){
 
 int handleClient(void *serverD){
     while (true) {
+        file = fileHandle();
         printf("Get the credit size...");
         char *credit = zstr_recv(serverD);
         printf("\n...%s set as credit size.\n",credit);
         int chunk_size = atoi(credit);
         
         while (true) {
+            if(feof(file)){
+                printf("End of file reached. \n");
+                break;
+            }
+            
             byte *data = calloc(chunk_size, sizeof(byte));
-            size_t size = fread(data, 1, chunk_size, fileHandle()); //read form the file
+            
+            size_t size = fread(data, 1, chunk_size, file); //read form the file
             
             zframe_t *chunk = zframe_new (data, size);  //get the frame ready to send
             zframe_send (&chunk, serverD, 0);
@@ -35,7 +42,6 @@ int handleClient(void *serverD){
                 printf("Complete file sent!\n");
                 break; // Always end with a zero-size frame
             }
-
         }
         fclose (file);
     }
