@@ -13,7 +13,7 @@
 //static char *signature = "ZS";
 
 void give_credit(int credit, void *dealer){
-    char puf[16];
+    char puf[32];
     sprintf(puf, "%d", credit);
     puf[strlen(puf)] = '\0';    //terminating the string
     printf("Sending... %s credit size.\n",puf);
@@ -51,7 +51,7 @@ int main(int argc, char **argv){
     void *dealer = zsocket_new(ctx, ZMQ_DEALER);
     zsocket_connect(dealer, "tcp://localhost:9989");
 
-    give_credit(1000, dealer);
+    give_credit(250000, dealer);
     printf("Start getting chunks.\n");
     size_t chunksGet = rcv_chunks(dealer);
     
