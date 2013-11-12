@@ -50,3 +50,6 @@ src/stamp-h1
 
 fileTransferProto/c
 fileTransferProto/s
+src/fileClient
+src/fileServer
+src/zerosync
