@@ -215,9 +215,6 @@ zs_msg_recv (void *input)
     rframe = zframe_recv (input);
     self->needle = zframe_data(rframe);
     
-    // TODO ceiling
-    self->ceiling = self->needle + 11;
-    
     // parse message
     GET_NUMBER2(self->signature);
     GET_NUMBER1(self->cmd);
@@ -226,14 +223,15 @@ zs_msg_recv (void *input)
     if (self->signature == SIGNATURE) { 
         switch (self->cmd) {
             case ZS_CMD_LAST_STATE:
+                self->ceiling = self->needle + 11;
                 GET_NUMBER8(self->state);
                 break;
             case ZS_CMD_FILE_LIST:
+                self->ceiling = self->needle + 24 + 8;
                 // file meta data count
                 GET_NUMBER8(list_size);
 
                 self->filemeta_list = zlist_new ();
-                zlist_autofree (self->filemeta_list);
                 while (list_size--) {
                     zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
                     GET_STRING (filemeta_data->path);
@@ -319,6 +317,7 @@ zs_msg_send_last_state (void *output, uint64_t state)
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_LAST_STATE);
     zs_msg_set_state (self, state);
+    size_t frame_size = 8; // 8-byte state
     return zs_msg_send (&self, output, 8);
 }
 
@@ -331,7 +330,13 @@ zs_msg_send_file_list (void *output, zlist_t *filemeta_list)
     zs_msg_t *self = zs_msg_new (ZS_CMD_FILE_LIST);   
     zs_msg_set_file_meta (self, filemeta_list);
 
-    size_t frame_size = zlist_size(filemeta_list) * (sizeof(string_size_t) + 8 + 8);
+    size_t frame_size = 8 + // 8-byte list size
+                        (zlist_size(filemeta_list) *
+                          (sizeof(string_size_t) + // string size
+                           5 + // string length @TODO make variable
+                           8 + // 8-byte file size
+                           8)  // 8-byte time stamp
+                        );
     return zs_msg_send (&self, output, frame_size); 
 }
 
@@ -389,6 +394,30 @@ main (void)
     zs_msg_t *self = zs_msg_recv (sink);
     printf("signature %"PRIx16" command %x\n", self->signature, self->cmd);
     printf("last state %"PRIx64"\n", zs_msg_get_state (self));
+    
+    // cleanup 
+    zs_msg_destroy (&self);
+
+    /* [SEND] FILE LIST */
+    zlist_t *filemeta_list = zlist_new ();
+    zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
+    filemeta_data->path[0] = 'a';
+    filemeta_data->path[1] = '.';
+    filemeta_data->path[2] = 't';
+    filemeta_data->path[3] = 'x';
+    filemeta_data->path[4] = 't';
+    filemeta_data->size = 0x1533;
+    filemeta_data->timestamp = 0x4ED12AF;
+    zlist_append(filemeta_list, filemeta_data);
+    
+    zs_msg_send_file_list (sender, filemeta_list);
+
+    /* [RECV] FILE LIST */
+    self = zs_msg_recv (sink);
+    zlist_t *rfilemeta_list = self->filemeta_list;
+    filemeta_data = zlist_first (rfilemeta_list);
+    printf("%s %"PRIx64" %"PRIx64"\n", filemeta_data->path, filemeta_data->size, filemeta_data->timestamp);
+
     // cleanup 
     zs_msg_destroy (&self);
     
