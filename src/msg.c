@@ -371,62 +371,64 @@ zs_msg_set_file_meta (zs_msg_t *self, zlist_t *filemeta_list)
 zlist_t *
 zs_msg_get_file_meta (zs_msg_t *self) 
 {
+    assert (self);
     return self->filemeta_list;
 }
 
-int 
-main (void) 
+// --------------------------------------------------------------------------
+// Get/Set the file meta data path
+
+void
+zs_filemeta_data_set_path (zs_filemeta_data_t *self, char* path) 
 {
-    /* 1. create zmq context */
-    void *context = zmq_ctx_new ();
-    /* 2. create sockets */
-    void *sink = zmq_socket (context, ZMQ_DEALER);
-    void *sender = zmq_socket (context, ZMQ_DEALER);
-    /* 3. bind/connect sockets */
-    int rc = zmq_bind (sink, "inproc://zframe.test");
-    assert(rc == 0);
-    zmq_connect (sender, "inproc://zframe.test");
+    assert (self);    
     
-    /* [WRITE/SEND] Serialize message into the frame */
-    zs_msg_send_last_state (sender, 0xFF);
-    
-    /* [READ/RECV] Deserialize message from frame */
-    zs_msg_t *self = zs_msg_recv (sink);
-    printf("signature %"PRIx16" command %x\n", self->signature, self->cmd);
-    printf("last state %"PRIx64"\n", zs_msg_get_state (self));
-    
-    // cleanup 
-    zs_msg_destroy (&self);
+    self->path = malloc(strlen(path) * sizeof(char));
+    strcpy(self->path, path);
+}
 
-    /* [SEND] FILE LIST */
-    zlist_t *filemeta_list = zlist_new ();
-    zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
-    filemeta_data->path[0] = 'a';
-    filemeta_data->path[1] = '.';
-    filemeta_data->path[2] = 't';
-    filemeta_data->path[3] = 'x';
-    filemeta_data->path[4] = 't';
-    filemeta_data->size = 0x1533;
-    filemeta_data->timestamp = 0x4ED12AF;
-    zlist_append(filemeta_list, filemeta_data);
+char *
+zs_filemeta_data_get_path (zs_filemeta_data_t *self)
+{
+    assert (self);
     
-    zs_msg_send_file_list (sender, filemeta_list);
+    char *path = malloc(strlen(self->path) * sizeof(char));
+    strcpy(path, self->path);
+    return path;
+}    
 
-    /* [RECV] FILE LIST */
-    self = zs_msg_recv (sink);
-    zlist_t *rfilemeta_list = self->filemeta_list;
-    filemeta_data = zlist_first (rfilemeta_list);
-    printf("signature %"PRIx16" command %x\n", self->signature, self->cmd);
-    printf("%s %"PRIx64" %"PRIx64"\n", filemeta_data->path, filemeta_data->size, filemeta_data->timestamp);
 
-    // cleanup 
-    zs_msg_destroy (&self);
-    
-    /* 4. close & destroy */
-    zmq_close (sink);
-    zmq_close (sender);
-    zmq_ctx_destroy (context);
+// --------------------------------------------------------------------------
+// Get/Set the file meta data size
 
-    return EXIT_SUCCESS;
+void
+zs_filemeta_data_set_size (zs_filemeta_data_t *self, uint64_t size) 
+{
+    assert (self);
+    self->size = size;
+}    
+
+uint64_t 
+zs_filemeta_data_get_size (zs_filemeta_data_t *self) 
+{
+    assert (self);
+    return self->size;
+}    
+
+
+// --------------------------------------------------------------------------
+// Get/Set the file meta data timestamp
+
+void
+zs_filemeta_data_set_timestamp (zs_filemeta_data_t *self, uint64_t timestamp)
+{
+    assert (self);
+    self->timestamp = timestamp;
+}
+
+uint64_t 
+zs_filemeta_data_get_timestamp (zs_filemeta_data_t *self) {
+    assert (self);
+    return self->timestamp;
 }
 

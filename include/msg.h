@@ -42,6 +42,28 @@ typedef struct _zs_filemeta_data_t zs_filemeta_data_t;
 // Strings might change due to UTF encoding
 typedef uint16_t string_size_t;
 
+// --------------------------------------------------------------------------
+// Create & Destroy
+
+// create new zs message
+zs_msg_t *
+zs_msg_new (int cmd);
+
+// destroy zs message
+void
+zs_msg_destroy (zs_msg_t **self_p);
+
+// create new zs file meta data
+zs_filemeta_data_t *
+zs_filemeta_data_new ();
+
+// destroy file meta data
+void
+zs_filemeta_data_destroy (zs_filemeta_data_t **self_p);
+
+// --------------------------------------------------------------------------
+// Receive & Send
+
 // receive messages
 zs_msg_t *
 zs_msg_recv (void *input);
@@ -58,6 +80,9 @@ zs_msg_send_file_list (void *output, zlist_t *filemeta_list);
 int 
 zs_msg_send_last_state (void *output, uint64_t state);
 
+// --------------------------------------------------------------------------
+// zs_msg_t get & set
+
 // getter/setter message state    
 void 
 zs_msg_set_state (zs_msg_t *self, uint64_t state);
@@ -72,6 +97,30 @@ zs_msg_set_file_meta (zs_msg_t *self, zlist_t *filemeta_list);
 zlist_t *
 zs_msg_get_file_meta (zs_msg_t *self);
 
+// --------------------------------------------------------------------------
+// zs_filemeta_data_t get & set
+
+
+// getter/setter file path
+void
+zs_filemeta_data_set_path (zs_filemeta_data_t *self, char* path);
+
+char *
+zs_filemeta_data_get_path (zs_filemeta_data_t *self);
+
+// getter/setter file size
+void
+zs_filemeta_data_set_size (zs_filemeta_data_t *self, uint64_t size);
+
+uint64_t 
+zs_filemeta_data_get_size (zs_filemeta_data_t *self);
+
+// getter/setter timestamp
+void
+zs_filemeta_data_set_timestamp (zs_filemeta_data_t *self, uint64_t timestamp);
+
+uint64_t
+zs_filemeta_data_get_timestamp (zs_filemeta_data_t *self);
 
 #ifdef __cplusplus
 }

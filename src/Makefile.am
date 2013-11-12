@@ -11,10 +11,13 @@ libzsync_la_SOURCES = \
 
 AM_CPPFLAGS = -I$(top_srcdir)/include    
 
-bin_PROGRAMS = fileClient fileServer
+bin_PROGRAMS = fileClient fileServer msg_selftest
 
 fileClient_SOURCES = fileTransferClient.c
 fileClient_LDADD = -lzmq -lczmq libzsync.la
 
 fileServer_SOURCES = fileTransferServer.c
 fileServer_LDADD = -lzmq -lczmq libzsync.la
+
+msg_selftest_SOURCES = msg_test.c
+msg_selftest_LDADD = -lzmq -lczmq libzsync.la
