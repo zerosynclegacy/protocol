@@ -1,7 +1,7 @@
 /*
     This program offers a prototype of the file transfering part of the zerosynch protocol.
     @@Author Bernhard Finger   
-    @@language C
+    @@Language C
 */
 
 #include <zmq.h>
@@ -13,24 +13,25 @@
 
 int credit = 250000;
 //static char *signature = "ZS";
+
 void give_credit(int credit, void *dealer){
     char puf[32];
     sprintf(puf, "%d", credit);
-    puf[strlen(puf)] = '\0';    //terminating the string
     printf("Sending... %s credit size.\n",puf);
     zstr_send(dealer, puf);
 }
 
+/* this function is handling the receiving of the chunks sent from server  */
 int rcv_chunks(void *dealer){
     size_t total=0;
     size_t chunks=0;
 
-    FILE *rcvdFile = fopen("/home/burne/Documents/rcvtestdata", "wb");
+    FILE *rcvdFile = fopen("/home/burne/Documents/rcvtestdata", "wb"); 
     assert(rcvdFile);
 
     while (true) {
        size_t size;
-       zframe_t *frame = zframe_recv(dealer);  
+       zframe_t *frame = zframe_recv(dealer);  //Each chunk is coded as a frame - now we receive it from our dealer socket
        byte *data = zframe_data(frame);
 
        if(fwrite(data, 1, zframe_size(frame), rcvdFile) < 0){
@@ -47,8 +48,7 @@ int rcv_chunks(void *dealer){
        size = zframe_size(frame);
        zframe_destroy(&frame);
        total += size;
-    
-        
+       
        if (size < credit){
            printf("%d bytes totally received.\n", (int)total);
            break; // Whole file received

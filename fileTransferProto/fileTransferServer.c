@@ -1,3 +1,10 @@
+/*
+    This program offers a prototype of the file transfering part of the zerosynch protocol.
+    @@Author Bernhard Finger
+    @@Language C
+*/
+
+
 /* testdata is a file generated with the dd app and /dev/urandom. It´s size counts 1GB */
 
 #include <czmq.h>
