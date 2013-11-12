@@ -47,3 +47,6 @@ src/platform.h
 src/platform.h.in
 src/platform.h.in~
 src/stamp-h1
+
+fileTransferProto/c
+fileTransferProto/s

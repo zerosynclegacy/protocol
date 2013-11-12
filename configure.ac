@@ -14,7 +14,7 @@ AC_PROG_CC_C_O
 
 # Checks libraries
 AC_CHECK_LIB([zmq], [zmq_init], [], 
-             [AC_MSG_ERROR(["Cannot link -lzmq, install zeromq libzmq"])])w
+             [AC_MSG_ERROR(["Cannot link -lzmq, install zeromq libzmq"])])
 
 AC_CHECK_LIB([czmq], [zctx_new], [],
              [AC_MSG_ERROR(["Cannot link -lczmq, install zeromq czmq"])])
