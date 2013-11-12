@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include "../include/msg.h"
 
 struct _zs_msg_t {
     uint16_t signature;     // zs_msg signature
@@ -15,16 +16,8 @@ struct _zs_msg_t {
     uint64_t state;
 };
 
-// Opaque class structure
-typedef struct _zs_msg_t zs_msg_t;
 
-void 
-zs_msg_set_state (zs_msg_t *self, uint64_t state);
-
-uint64_t 
-zs_msg_get_state (zs_msg_t *self);
-
-    // Put a 1-byte number to the frame
+// Put a 1-byte number to the frame
 #define PUT_NUMBER1(host) { \
     *(byte *) self->needle = (host); \
     self->needle++; \

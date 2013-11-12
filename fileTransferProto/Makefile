@@ -1,7 +1,0 @@
-compile:
-	gcc fileTransferClient.c -o c -Wall -lzmq -lczmq
-	gcc fileTransferServer.c -o s -Wall -lzmq -lczmq
-clean:
-	rm s
-	rm c
-
