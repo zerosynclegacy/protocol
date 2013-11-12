@@ -16,6 +16,25 @@ struct _zs_msg_t {
     uint64_t state;
 };
 
+// --------------------------------------------------------------------------
+// Network data encoding macros
+
+// Strings are encoded with 2-byte length
+#define STRING_MAX 65535 // 2-byte - 1-bit for trailing \0
+
+// Put a block to the frame
+#define PUT_BLOCK(host,size) { \
+    memcpy (self->needle, (host), size); \
+    self->needle += size; \
+}
+
+// Get a block from the frame
+#define GET_BLOCK(host,size) { \
+    /*if (self->needle + size > self->ceiling) \
+    goto malformed; */ \
+    memcpy ((host), self->needle, size); \
+    self->needle += size; \
+}
 
 // Put a 1-byte number to the frame
 #define PUT_NUMBER1(host) { \
@@ -73,6 +92,25 @@ struct _zs_msg_t {
     + ((uint64_t) (self->needle [6]) << 8) \
     + (uint64_t) (self->needle [7]); \
     self->needle += 8; \
+}
+
+// Put a string to the frame
+#define PUT_STRING(host) { \
+    string_size = strlen (host); \
+    PUT_NUMBER2 (string_size); \
+    memcpy (self->needle, (host), string_size); \
+    self->needle += string_size; \
+}
+
+// Get a string from the frame
+#define GET_STRING(host) { \
+    GET_NUMBER2 (string_size); \
+    /*if (self->needle + string_size > (self->ceiling)) \
+    goto malformed; */ \
+    (host) = (char *) malloc (string_size + 1); \
+    memcpy ((host), self->needle, string_size); \
+    (host) [string_size] = 0; \
+    self->needle += string_size; \
 }
 
 // --------------------------------------------------------------------------
