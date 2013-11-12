@@ -1,3 +1,26 @@
+/* =========================================================================
+   zs_msg - work with zerosync messages
+
+   -------------------------------------------------------------------------
+   Copyright (c) 2013 Kevin Sapper, Bernhard Finger
+   Copyright other contributors as noted in the AUTHORS file.
+   
+   This file is part of ZeroSync, see http://zerosync.org.
+   
+   This is free software; you can redistribute it and/or modify it under
+   the terms of the GNU Lesser General Public License as published by the
+   Free Software Foundation; either version 3 of the License, or (at your
+   option) any later version.
+   This software is distributed in the hope that it will be useful, but
+   WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTA-
+   BILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
+   Public License for more details.
+   
+   You should have received a copy of the GNU Lesser General Public License
+   along with this program. If not, see http://www.gnu.org/licenses/.
+   =========================================================================
+*/
+
 #include <zmq.h>
 #include <czmq.h>
 #include <inttypes.h>
@@ -14,6 +37,14 @@ struct _zs_msg_t {
     byte *needle;           // read/write pointer for serialization
     byte *ceiling;          // valid upper limit for needle
     uint64_t state;
+    zlist_t *filemeta_list;  // zlist of file meta data list
+};
+
+struct _zs_filemeta_data_t {
+    char * path;            // file path + file name
+    uint64_t size;          // file size in bytes
+    uint64_t timestamp;     // UNIX timestamp
+    uint64_t checksum;      // SHA-3 512
 };
 
 // --------------------------------------------------------------------------
@@ -141,6 +172,34 @@ zs_msg_destroy (zs_msg_t **self_p)
 }
 
 // --------------------------------------------------------------------------
+// Create a new zs_filemeta_data
+
+zs_filemeta_data_t * 
+zs_filemeta_data_new () 
+{
+    zs_filemeta_data_t *self = (zs_filemeta_data_t *) zmalloc (sizeof (zs_filemeta_data_t));
+    self->path = (char *) malloc (STRING_MAX + 1);
+    return self;
+}
+
+// --------------------------------------------------------------------------
+// Destroy the zs_msg
+
+void 
+zs_filemeta_data_destroy (zs_filemeta_data_t **self_p) 
+{
+    assert (self_p);
+    if (*self_p) {
+        zs_filemeta_data_t *self = *self_p;
+        
+        free(self->path);
+        // Free object itself
+        free (self);
+        *self_p = NULL;
+    }
+}
+
+// --------------------------------------------------------------------------
 // Receive and parse a fmq_msg from the socket. Returns new object or
 // NULL if error. Will block if there's no message waiting.
 
@@ -148,6 +207,8 @@ zs_msg_t *
 zs_msg_recv (void *input) 
 {
     zs_msg_t *self = zs_msg_new (0);
+    uint64_t list_size;
+    string_size_t string_size;
 
     // receive data
     zframe_t *rframe = NULL;
@@ -160,13 +221,31 @@ zs_msg_recv (void *input)
     // parse message
     GET_NUMBER2(self->signature);
     GET_NUMBER1(self->cmd);
-    
-    switch(self->cmd) {
-        case 0x1:
-            GET_NUMBER8(self->state);
-            break;
-        default:
-            break;
+  
+    // silently ignore everything with wrong signature     
+    if (self->signature == SIGNATURE) { 
+        switch (self->cmd) {
+            case ZS_CMD_LAST_STATE:
+                GET_NUMBER8(self->state);
+                break;
+            case ZS_CMD_FILE_LIST:
+                // file meta data count
+                GET_NUMBER8(list_size);
+
+                self->filemeta_list = zlist_new ();
+                zlist_autofree (self->filemeta_list);
+                while (list_size--) {
+                    zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
+                    GET_STRING (filemeta_data->path);
+                    GET_NUMBER8 (filemeta_data->size);
+                    GET_NUMBER8 (filemeta_data->timestamp);
+
+                    zlist_append (self->filemeta_list, filemeta_data); 
+                }
+                break;
+            default:
+                break;
+        }
     }
 
     // cleanup
@@ -180,35 +259,50 @@ zs_msg_recv (void *input)
 // Returns 0 if OK, else -1
 
 int 
-zs_msg_send (zs_msg_t **self_p, void *output) 
+zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
 {
     assert (output);
     assert (self_p);
     assert (*self_p);
 
     zs_msg_t *self = *self_p; 
+    string_size_t string_size;
+   
+    // calculate frame size
+    frame_size = frame_size + 2 + 1;          //  Signature and command ID
+    zframe_t *data_frame = zframe_new (NULL, frame_size);
     
-    size_t frame_size = 2 + 1 + 8;          //  Signature and command ID
-    zframe_t *sframe = zframe_new (NULL, frame_size);
-    
-    self->needle = zframe_data (sframe);  // Address of frame data
+    self->needle = zframe_data (data_frame);  // Address of frame data
     self->ceiling = self->needle + frame_size;
     
     /* Add data to frame */
-    PUT_NUMBER2 (0x5A53);
-    PUT_NUMBER1 (0x1);
+    PUT_NUMBER2 (SIGNATURE);
+    PUT_NUMBER1 (self->cmd);
 
     switch(self->cmd) {
-        case 0x1:
+        case ZS_CMD_LAST_STATE:
             PUT_NUMBER8 (self->state);
+            break;
+        case ZS_CMD_FILE_LIST:
+            // put trailing size of list
+            PUT_NUMBER8 (zlist_size (self->filemeta_list));
+            // get first element from list
+            zs_filemeta_data_t *filemeta_data = (zs_filemeta_data_t *) zlist_first (self->filemeta_list);
+            while (filemeta_data) {
+                PUT_STRING (filemeta_data->path);
+                PUT_NUMBER8 (filemeta_data->size);
+                PUT_NUMBER8 (filemeta_data->timestamp);
+                // next list entry
+                filemeta_data = (zs_filemeta_data_t *) zlist_next (self->filemeta_list);
+            }
             break;
         default:
             break;
     }
     
-    /* Send frame */
-    if (zframe_send (&sframe, output, 0)) {
-        zframe_destroy (&sframe);
+    /* Send data frame */
+    if (zframe_send (&data_frame, output, 0)) {
+        zframe_destroy (&data_frame);
     }
     
     /* Cleanup */
@@ -223,10 +317,24 @@ zs_msg_send (zs_msg_t **self_p, void *output)
 int 
 zs_msg_send_last_state (void *output, uint64_t state) 
 {
-    zs_msg_t *self = zs_msg_new (0x1);
+    zs_msg_t *self = zs_msg_new (ZS_CMD_LAST_STATE);
     zs_msg_set_state (self, state);
-    return zs_msg_send (&self, output);
+    return zs_msg_send (&self, output, 8);
 }
+
+// --------------------------------------------------------------------------
+// Send the FILE-LIST to the socket in one step
+
+int
+zs_msg_send_file_list (void *output, zlist_t *filemeta_list) 
+{
+    zs_msg_t *self = zs_msg_new (ZS_CMD_FILE_LIST);   
+    zs_msg_set_file_meta (self, filemeta_list);
+
+    size_t frame_size = zlist_size(filemeta_list) * (sizeof(string_size_t) + 8 + 8);
+    return zs_msg_send (&self, output, frame_size); 
+}
+
 
 // --------------------------------------------------------------------------
 // Get/Set the state field
@@ -243,6 +351,22 @@ zs_msg_get_state (zs_msg_t *self)
 {
     assert (self);
     return self->state;
+}
+
+// --------------------------------------------------------------------------
+// Get/Set the file meta data list
+
+void 
+zs_msg_set_file_meta (zs_msg_t *self, zlist_t *filemeta_list) 
+{
+    assert (self);
+    self->filemeta_list = filemeta_list;
+}
+
+zlist_t *
+zs_msg_get_file_meta (zs_msg_t *self) 
+{
+    return self->filemeta_list;
 }
 
 int 
