@@ -14,6 +14,7 @@ struct _zs_msg_t {
     byte *needle;           // read/write pointer for serialization
     byte *ceiling;          // valid upper limit for needle
     uint64_t state;
+    uint64_t credit;        //given credit for RP 
 };
 
 // --------------------------------------------------------------------------
@@ -165,6 +166,9 @@ zs_msg_recv (void *input)
         case 0x1:
             GET_NUMBER8(self->state);
             break;
+        case ZS_CMD_GIVE_CREDIT:
+            GET_NUMBER8(self->credit);      
+            break;
         default:
             break;
     }
@@ -196,11 +200,14 @@ zs_msg_send (zs_msg_t **self_p, void *output)
     
     /* Add data to frame */
     PUT_NUMBER2 (0x5A53);
-    PUT_NUMBER1 (0x1);
+    PUT_NUMBER1 (self->cmd);
 
     switch(self->cmd) {
         case 0x1:
             PUT_NUMBER8 (self->state);
+            break;
+        case ZS_CMD_GIVE_CREDIT:
+            PUT_NUMBER8 (self->credit);
             break;
         default:
             break;
@@ -228,6 +235,19 @@ zs_msg_send_last_state (void *output, uint64_t state)
     return zs_msg_send (&self, output);
 }
 
+// -------------------------------------------------------------------------
+// Send the given credit to a RP (receiving peer)
+int 
+zs_msg_send_give_credit (void *output, uint64_t credit)
+{ 
+    assert(output);
+    assert(credit);
+
+    zs_msg_t *msg = zs_msg_new (ZS_CMD_GIVE_CREDIT);
+    zs_msg_set_credit (msg, credit); 
+    return zs_msg_send (&msg, output); 
+}
+
 // --------------------------------------------------------------------------
 // Get/Set the state field
 
@@ -243,6 +263,20 @@ zs_msg_get_state (zs_msg_t *self)
 {
     assert (self);
     return self->state;
+}
+
+void 
+zs_msg_set_credit (zs_msg_t *self, uint64_t credit)
+{
+    assert (self);
+    self->credit = credit;
+}
+
+uint64_t 
+zs_msg_get_credit (zs_msg_t *self)
+{
+    assert (self);
+    return self->credit;
 }
 
 int 

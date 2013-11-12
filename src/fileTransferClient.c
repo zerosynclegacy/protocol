@@ -11,12 +11,14 @@
 #include <string.h>
 #include <stdlib.h>
 
-int credit = 250000;
+//Static credit
+#define credit 250000
+
 //static char *signature = "ZS";
 
-void give_credit(int credit, void *dealer){
+void give_credit(int credit_t, void *dealer){
     char puf[32];
-    sprintf(puf, "%d", credit);
+    sprintf(puf, "%d", credit_t);
     printf("Sending... %s credit size.\n",puf);
     zstr_send(dealer, puf);
 }
