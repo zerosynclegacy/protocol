@@ -28,6 +28,7 @@
 extern "C" {
 #endif
 
+// ZeroSync Sigature
 #define SIGNATURE 0x5A53
 
 // Message commands 
@@ -46,13 +47,11 @@ zs_msg_t *
 zs_msg_recv (void *input);
 
 // send LAST_STATE
-
 int 
 zs_msg_send_last_state (void *output, uint64_t state);
 
  
 // send FILE_LIST
-
 int
 zs_msg_send_file_list (void *output, zlist_t *filemeta_list);
 
@@ -67,7 +66,6 @@ uint64_t
 zs_msg_get_state (zs_msg_t *self);
 
 // getter/setter message file meta list
-
 void 
 zs_msg_set_file_meta (zs_msg_t *self, zlist_t *filemeta_list);
 

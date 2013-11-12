@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../include/msg.h"
 
 int credit = 250000;
 //static char *signature = "ZS";
@@ -64,7 +65,8 @@ int main(int argc, char **argv){
     void *dealer = zsocket_new(ctx, ZMQ_DEALER);
     zsocket_connect(dealer, "tcp://localhost:9989");
 
-    give_credit(credit, dealer);
+    // give_credit(credit, dealer);
+    zs_msg_send_last_state (dealer, 0x444);
     printf("Start getting chunks.\n");
     size_t chunksGet = rcv_chunks(dealer);
     

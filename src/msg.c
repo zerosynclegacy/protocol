@@ -416,6 +416,7 @@ main (void)
     self = zs_msg_recv (sink);
     zlist_t *rfilemeta_list = self->filemeta_list;
     filemeta_data = zlist_first (rfilemeta_list);
+    printf("signature %"PRIx16" command %x\n", self->signature, self->cmd);
     printf("%s %"PRIx64" %"PRIx64"\n", filemeta_data->path, filemeta_data->size, filemeta_data->timestamp);
 
     // cleanup 
