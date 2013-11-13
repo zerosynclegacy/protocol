@@ -1,2 +1,7 @@
 
 core
+.libs/
+
+msg.lo
+msg_selftest
+libzsync.la

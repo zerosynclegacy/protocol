@@ -31,7 +31,8 @@ extern "C" {
 // Message commands 
 #define ZS_CMD_LAST_STATE 0x1
 #define ZS_CMD_FILE_LIST 0x2
-    
+#define ZS_CMD_GIVE_CREDIT 0x5 
+
 // Opaque class structure
 typedef struct _zs_msg_t zs_msg_t;
 typedef struct _zs_filemeta_data_t zs_filemeta_data_t;
@@ -74,8 +75,9 @@ zs_msg_send_last_state (void *output, uint64_t state);
 int
 zs_msg_send_file_list (void *output, zlist_t *filemeta_list);
 
-int 
-zs_msg_send_last_state (void *output, uint64_t state);
+// send GIVE CREDIT
+int
+zs_msg_send_give_credit (void *output, uint64_t credit);
 
 // --------------------------------------------------------------------------
 // zs_msg_t get & set
@@ -93,6 +95,14 @@ zs_msg_set_file_meta (zs_msg_t *self, zlist_t *filemeta_list);
 
 zlist_t *
 zs_msg_get_file_meta (zs_msg_t *self);
+
+// getter/setter message credit
+void
+zs_msg_set_credit (zs_msg_t *self, uint64_t credit);
+
+uint64_t
+zs_msg_get_credit (zs_msg_t *self);
+
 
 // --------------------------------------------------------------------------
 // zs_filemeta_data_t get & set

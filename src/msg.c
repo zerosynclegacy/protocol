@@ -37,7 +37,8 @@ struct _zs_msg_t {
     byte *needle;           // read/write pointer for serialization
     byte *ceiling;          // valid upper limit for needle
     uint64_t state;
-    zlist_t *filemeta_list;  // zlist of file meta data list
+    zlist_t *filemeta_list; // zlist of file meta data list
+    uint64_t credit;        //given credit for RP 
 };
 
 struct _zs_filemeta_data_t {
@@ -243,6 +244,9 @@ zs_msg_recv (void *input)
                     zlist_append (self->filemeta_list, filemeta_data); 
                 }
                 break;
+            case ZS_CMD_GIVE_CREDIT:
+                GET_NUMBER8(self->credit);      
+                break;
             default:
                 break;
         }
@@ -296,6 +300,8 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
                 filemeta_data = (zs_filemeta_data_t *) zlist_next (self->filemeta_list);
             }
             // TODO destroy zlist
+        case ZS_CMD_GIVE_CREDIT:
+            PUT_NUMBER8 (self->credit);
             break;
         default:
             break;
@@ -348,6 +354,21 @@ zs_msg_send_file_list (void *output, zlist_t *filemeta_list)
     return zs_msg_send (&self, output, frame_size); 
 }
 
+// -------------------------------------------------------------------------
+// Send the given credit to a RP (receiving peer)
+int 
+zs_msg_send_give_credit (void *output, uint64_t credit)
+{ 
+    assert(output);
+    assert(credit);
+
+    zs_msg_t *msg = zs_msg_new (ZS_CMD_GIVE_CREDIT);
+    zs_msg_set_credit (msg, credit); 
+
+    size_t frame_size = 8; // 8-byte credit
+    return zs_msg_send (&msg, output, frame_size); 
+}
+
 
 // --------------------------------------------------------------------------
 // Get/Set the state field
@@ -381,6 +402,23 @@ zs_msg_get_file_meta (zs_msg_t *self)
 {
     assert (self);
     return self->filemeta_list;
+}
+
+// --------------------------------------------------------------------------
+// Get/Set the credit
+
+void 
+zs_msg_set_credit (zs_msg_t *self, uint64_t credit)
+{
+    assert (self);
+    self->credit = credit;
+}
+
+uint64_t 
+zs_msg_get_credit (zs_msg_t *self)
+{
+    assert (self);
+    return self->credit;
 }
 
 // --------------------------------------------------------------------------
@@ -443,4 +481,3 @@ zs_filemeta_data_get_timestamp (zs_filemeta_data_t *self) {
     assert (self);
     return self->timestamp;
 }
-
