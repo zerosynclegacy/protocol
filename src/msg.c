@@ -278,35 +278,3 @@ zs_msg_get_credit (zs_msg_t *self)
     assert (self);
     return self->credit;
 }
-
-int 
-main (void) 
-{
-    /* 1. create zmq context */
-    void *context = zmq_ctx_new ();
-    /* 2. create sockets */
-    void *sink = zmq_socket (context, ZMQ_DEALER);
-    void *sender = zmq_socket (context, ZMQ_DEALER);
-    /* 3. bind/connect sockets */
-    int rc = zmq_bind (sink, "inproc://zframe.test");
-    assert(rc == 0);
-    zmq_connect (sender, "inproc://zframe.test");
-    
-    /* [WRITE/SEND] Serialize message into the frame */
-    zs_msg_send_last_state (sender, 0xFF);
-    
-    /* [READ/RECV] Deserialize message from frame */
-    zs_msg_t *self = zs_msg_recv (sink);
-    printf("signature %"PRIx16" command %x\n", self->signature, self->cmd);
-    printf("last state %"PRIx64"\n", zs_msg_get_state (self));
-    // cleanup 
-    zs_msg_destroy (&self);
-    
-    /* 4. close & destroy */
-    zmq_close (sink);
-    zmq_close (sender);
-    zmq_ctx_destroy (context);
-
-    return EXIT_SUCCESS;
-}
-

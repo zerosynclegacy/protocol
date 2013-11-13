@@ -10,18 +10,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "../include/msg.h"
 
 //Static credit
 #define credit 250000
-
-//static char *signature = "ZS";
-
-void give_credit(int credit_t, void *dealer){
-    char puf[32];
-    sprintf(puf, "%d", credit_t);
-    printf("Sending... %s credit size.\n",puf);
-    zstr_send(dealer, puf);
-}
 
 /* this function is handling the receiving of the chunks sent from server  */
 int rcv_chunks(void *dealer){
@@ -66,7 +58,9 @@ int main(int argc, char **argv){
     void *dealer = zsocket_new(ctx, ZMQ_DEALER);
     zsocket_connect(dealer, "tcp://localhost:9989");
 
-    give_credit(credit, dealer);
+    if(zs_msg_send_give_credit(dealer, (uint64_t)credit) != 0){
+        printf("PANIC!\n");
+    }
     printf("Start getting chunks.\n");
     size_t chunksGet = rcv_chunks(dealer);
     
