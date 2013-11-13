@@ -47,6 +47,9 @@ struct _zs_filemeta_data_t {
     uint64_t checksum;      // SHA-3 512
 };
 
+// ZeroSync Sigature
+#define SIGNATURE 0x5A53
+
 // --------------------------------------------------------------------------
 // Network data encoding macros
 
@@ -178,7 +181,6 @@ zs_filemeta_data_t *
 zs_filemeta_data_new () 
 {
     zs_filemeta_data_t *self = (zs_filemeta_data_t *) zmalloc (sizeof (zs_filemeta_data_t));
-    self->path = (char *) malloc (STRING_MAX + 1);
     return self;
 }
 
@@ -266,7 +268,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
     zs_msg_t *self = *self_p; 
     string_size_t string_size;
    
-    // calculate frame size
+    // frame size appendix
     frame_size = frame_size + 2 + 1;          //  Signature and command ID
     zframe_t *data_frame = zframe_new (NULL, frame_size);
     
@@ -293,6 +295,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
                 // next list entry
                 filemeta_data = (zs_filemeta_data_t *) zlist_next (self->filemeta_list);
             }
+            // TODO destroy zlist
             break;
         default:
             break;
@@ -318,7 +321,7 @@ zs_msg_send_last_state (void *output, uint64_t state)
     zs_msg_t *self = zs_msg_new (ZS_CMD_LAST_STATE);
     zs_msg_set_state (self, state);
     size_t frame_size = 8; // 8-byte state
-    return zs_msg_send (&self, output, 8);
+    return zs_msg_send (&self, output, frame_size);
 }
 
 // --------------------------------------------------------------------------
@@ -330,13 +333,18 @@ zs_msg_send_file_list (void *output, zlist_t *filemeta_list)
     zs_msg_t *self = zs_msg_new (ZS_CMD_FILE_LIST);   
     zs_msg_set_file_meta (self, filemeta_list);
 
-    size_t frame_size = 8 + // 8-byte list size
-                        (zlist_size(filemeta_list) *
-                          (sizeof(string_size_t) + // string size
-                           5 + // string length @TODO make variable
-                           8 + // 8-byte file size
-                           8)  // 8-byte time stamp
-                        );
+    // calculate frame size
+    size_t frame_size = 8; // 8-byte list size
+    zs_filemeta_data_t *filemeta_data = (zs_filemeta_data_t *) zlist_first (self->filemeta_list);
+    while (filemeta_data) {
+        frame_size += sizeof(string_size_t); // string size
+        frame_size += strlen(filemeta_data->path); // string length
+        frame_size += 8; // 8-byte file size
+        frame_size += 8; // 8-byte time stamp
+        // next list entry
+        filemeta_data = (zs_filemeta_data_t *) zlist_next (self->filemeta_list);
+    }
+
     return zs_msg_send (&self, output, frame_size); 
 }
 
@@ -381,8 +389,12 @@ zs_msg_get_file_meta (zs_msg_t *self)
 void
 zs_filemeta_data_set_path (zs_filemeta_data_t *self, char* path) 
 {
-    assert (self);    
-    
+    assert (self);
+    // free extisting path value
+    if(self->path) {
+        free(self->path);
+    }   
+    // copy string to struct
     self->path = malloc(strlen(path) * sizeof(char));
     strcpy(self->path, path);
 }
@@ -391,7 +403,7 @@ char *
 zs_filemeta_data_get_path (zs_filemeta_data_t *self)
 {
     assert (self);
-    
+    // copy string from struct 
     char *path = malloc(strlen(self->path) * sizeof(char));
     strcpy(path, self->path);
     return path;

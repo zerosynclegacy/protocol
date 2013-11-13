@@ -28,9 +28,6 @@
 extern "C" {
 #endif
 
-// ZeroSync Sigature
-#define SIGNATURE 0x5A53
-
 // Message commands 
 #define ZS_CMD_LAST_STATE 0x1
 #define ZS_CMD_FILE_LIST 0x2

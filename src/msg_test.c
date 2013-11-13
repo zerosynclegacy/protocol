@@ -31,6 +31,7 @@ main (void)
     
     // cleanup 
     zs_msg_destroy (&self);
+
     /* [SEND] FILE LIST */
     zlist_t *filemeta_list = zlist_new ();
     zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
