@@ -45,3 +45,9 @@ fileTransferProto/s
 src/fileClient
 src/fileServer
 src/zerosync
+
+config.h
+config.log
+config.status
+libtool
+stamp-h1
