@@ -37,12 +37,13 @@ struct _zs_msg_t {
     byte *needle;           // read/write pointer for serialization
     byte *ceiling;          // valid upper limit for needle
     uint64_t state;
-    zlist_t *filemeta_list; // zlist of file meta data list
-    uint64_t credit;        //given credit for RP 
+    zlist_t *fmetadata;     // zlist of file meta data list
+    zlist_t *fpaths;        // zlist of file paths
+    uint64_t credit;        // given credit for RP 
 };
 
-struct _zs_filemeta_data_t {
-    char * path;            // file path + file name
+struct _zs_fmetadata_t {
+    char *path;             // file path + file name
     uint64_t size;          // file size in bytes
     uint64_t timestamp;     // UNIX timestamp
     uint64_t checksum;      // SHA-3 512
@@ -176,12 +177,12 @@ zs_msg_destroy (zs_msg_t **self_p)
 }
 
 // --------------------------------------------------------------------------
-// Create a new zs_filemeta_data
+// Create a new zs_fmetadata
 
-zs_filemeta_data_t * 
-zs_filemeta_data_new () 
+zs_fmetadata_t * 
+zs_fmetadata_new () 
 {
-    zs_filemeta_data_t *self = (zs_filemeta_data_t *) zmalloc (sizeof (zs_filemeta_data_t));
+    zs_fmetadata_t *self = (zs_fmetadata_t *) zmalloc (sizeof (zs_fmetadata_t));
     return self;
 }
 
@@ -189,11 +190,11 @@ zs_filemeta_data_new ()
 // Destroy the zs_msg
 
 void 
-zs_filemeta_data_destroy (zs_filemeta_data_t **self_p) 
+zs_fmetadata_destroy (zs_fmetadata_t **self_p) 
 {
     assert (self_p);
     if (*self_p) {
-        zs_filemeta_data_t *self = *self_p;
+        zs_fmetadata_t *self = *self_p;
         
         free(self->path);
         // Free object itself
@@ -234,14 +235,14 @@ zs_msg_recv (void *input)
                 // file meta data count
                 GET_NUMBER8(list_size);
 
-                self->filemeta_list = zlist_new ();
+                self->fmetadata = zlist_new ();
                 while (list_size--) {
-                    zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
+                    zs_fmetadata_t *filemeta_data = zs_fmetadata_new ();
                     GET_STRING (filemeta_data->path);
                     GET_NUMBER8 (filemeta_data->size);
                     GET_NUMBER8 (filemeta_data->timestamp);
 
-                    zlist_append (self->filemeta_list, filemeta_data); 
+                    zlist_append (self->fmetadata, filemeta_data); 
                 }
                 break;
             case ZS_CMD_GIVE_CREDIT:
@@ -289,17 +290,21 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             break;
         case ZS_CMD_FILE_LIST:
             // put trailing size of list
-            PUT_NUMBER8 (zlist_size (self->filemeta_list));
+            PUT_NUMBER8 (zlist_size (self->fmetadata));
             // get first element from list
-            zs_filemeta_data_t *filemeta_data = (zs_filemeta_data_t *) zlist_first (self->filemeta_list);
+            zs_fmetadata_t *filemeta_data = (zs_fmetadata_t *) zlist_first (self->fmetadata);
             while (filemeta_data) {
                 PUT_STRING (filemeta_data->path);
                 PUT_NUMBER8 (filemeta_data->size);
                 PUT_NUMBER8 (filemeta_data->timestamp);
-                // next list entry
-                filemeta_data = (zs_filemeta_data_t *) zlist_next (self->filemeta_list);
+                // cleanup & next list entry
+                zs_fmetadata_destroy (&filemeta_data);
+                filemeta_data = (zs_fmetadata_t *) zlist_next (self->fmetadata);
             }
-            // TODO destroy zlist
+            zlist_destroy (&self->fmetadata);
+        case ZS_CMD_NO_UPDATE:
+            // No data to put
+            break;
         case ZS_CMD_GIVE_CREDIT:
             PUT_NUMBER8 (self->credit);
             break;
@@ -319,7 +324,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
 }
 
 // --------------------------------------------------------------------------
-// Send the LAST_STATE to the socket in one step
+// Send the LAST_STATE to the RP in one step
 
 int 
 zs_msg_send_last_state (void *output, uint64_t state) 
@@ -331,31 +336,61 @@ zs_msg_send_last_state (void *output, uint64_t state)
 }
 
 // --------------------------------------------------------------------------
-// Send the FILE-LIST to the socket in one step
+// Send the FILE_LIST to the RP in one step
 
 int
-zs_msg_send_file_list (void *output, zlist_t *filemeta_list) 
+zs_msg_send_file_list (void *output, zlist_t *fmetadata) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_FILE_LIST);   
-    zs_msg_set_file_meta (self, filemeta_list);
-
+    zs_msg_set_file_meta (self, fmetadata);
+    
     // calculate frame size
     size_t frame_size = 8; // 8-byte list size
-    zs_filemeta_data_t *filemeta_data = (zs_filemeta_data_t *) zlist_first (self->filemeta_list);
+    zs_fmetadata_t *filemeta_data = (zs_fmetadata_t *) zlist_first (self->fmetadata);
     while (filemeta_data) {
         frame_size += sizeof(string_size_t); // string size
         frame_size += strlen(filemeta_data->path); // string length
         frame_size += 8; // 8-byte file size
         frame_size += 8; // 8-byte time stamp
         // next list entry
-        filemeta_data = (zs_filemeta_data_t *) zlist_next (self->filemeta_list);
+        filemeta_data = (zs_fmetadata_t *) zlist_next (self->fmetadata);
     }
 
     return zs_msg_send (&self, output, frame_size); 
 }
 
+
 // -------------------------------------------------------------------------
-// Send the given credit to a RP (receiving peer)
+// Send the NO UPDATE to the RP in one step 
+
+int
+zs_msg_send_no_update (void *output) 
+{
+    zs_msg_t *self = zs_msg_new (ZS_CMD_NO_UPDATE);
+    size_t frame_size = 0; // there're no data to send
+    
+    return zs_msg_send (&self, output, frame_size);
+}
+
+
+// -------------------------------------------------------------------------
+// Send the REQUEST FILES to the RP in one step 
+
+int
+zs_msg_send_request_files (void *output, zlist_t *fpaths)
+{
+    zs_msg_t *self = zs_msg_new (ZS_CMD_REQUEST_FILES);
+    //TODO
+    //zs_msg_set_fpaths (self, fpaths);
+
+    size_t frame_size = 8; // 8-byte list size
+
+    return zs_msg_send (&self, output, frame_size);
+}
+
+// -------------------------------------------------------------------------
+// Send the GIVE_CREDIT to a RP (receiving peer)
+
 int 
 zs_msg_send_give_credit (void *output, uint64_t credit)
 { 
@@ -367,6 +402,16 @@ zs_msg_send_give_credit (void *output, uint64_t credit)
 
     size_t frame_size = 8; // 8-byte credit
     return zs_msg_send (&msg, output, frame_size); 
+}
+
+// --------------------------------------------------------------------------
+// Get the message command
+
+int
+zs_msg_get_cmd (zs_msg_t *self) 
+{
+    assert (self);
+    return self->cmd;    
 }
 
 
@@ -391,17 +436,17 @@ zs_msg_get_state (zs_msg_t *self)
 // Get/Set the file meta data list
 
 void 
-zs_msg_set_file_meta (zs_msg_t *self, zlist_t *filemeta_list) 
+zs_msg_set_file_meta (zs_msg_t *self, zlist_t *fmetadata) 
 {
     assert (self);
-    self->filemeta_list = filemeta_list;
+    self->fmetadata = fmetadata;
 }
 
 zlist_t *
 zs_msg_get_file_meta (zs_msg_t *self) 
 {
     assert (self);
-    return self->filemeta_list;
+    return self->fmetadata;
 }
 
 // --------------------------------------------------------------------------
@@ -425,7 +470,7 @@ zs_msg_get_credit (zs_msg_t *self)
 // Get/Set the file meta data path
 
 void
-zs_filemeta_data_set_path (zs_filemeta_data_t *self, char* path) 
+zs_fmetadata_set_path (zs_fmetadata_t *self, char* path) 
 {
     assert (self);
     // free extisting path value
@@ -438,7 +483,7 @@ zs_filemeta_data_set_path (zs_filemeta_data_t *self, char* path)
 }
 
 char *
-zs_filemeta_data_get_path (zs_filemeta_data_t *self)
+zs_fmetadata_get_path (zs_fmetadata_t *self)
 {
     assert (self);
     // copy string from struct 
@@ -452,14 +497,14 @@ zs_filemeta_data_get_path (zs_filemeta_data_t *self)
 // Get/Set the file meta data size
 
 void
-zs_filemeta_data_set_size (zs_filemeta_data_t *self, uint64_t size) 
+zs_fmetadata_set_size (zs_fmetadata_t *self, uint64_t size) 
 {
     assert (self);
     self->size = size;
 }    
 
 uint64_t 
-zs_filemeta_data_get_size (zs_filemeta_data_t *self) 
+zs_fmetadata_get_size (zs_fmetadata_t *self) 
 {
     assert (self);
     return self->size;
@@ -470,14 +515,14 @@ zs_filemeta_data_get_size (zs_filemeta_data_t *self)
 // Get/Set the file meta data timestamp
 
 void
-zs_filemeta_data_set_timestamp (zs_filemeta_data_t *self, uint64_t timestamp)
+zs_fmetadata_set_timestamp (zs_fmetadata_t *self, uint64_t timestamp)
 {
     assert (self);
     self->timestamp = timestamp;
 }
 
 uint64_t 
-zs_filemeta_data_get_timestamp (zs_filemeta_data_t *self) {
+zs_fmetadata_get_timestamp (zs_fmetadata_t *self) {
     assert (self);
     return self->timestamp;
 }

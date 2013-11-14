@@ -21,12 +21,13 @@ main (void)
     assert(rc == 0);
     zmq_connect (sender, "inproc://zframe.test");
     
-    /* [WRITE/SEND] Serialize message into the frame */
+    /* [SEND] LAST STATE */
     zs_msg_send_last_state (sender, 0xFF);
     
-    /* [READ/RECV] Deserialize message from frame */
+    /* [RECV] LAST STATE */
     zs_msg_t *self = zs_msg_recv (sink);
     uint64_t last_state = zs_msg_get_state (self);
+    printf("Command %d\n", zs_msg_get_cmd (self));
     printf("last state %"PRIx64"\n", last_state);
     
     // cleanup 
@@ -34,28 +35,39 @@ main (void)
 
     /* [SEND] FILE LIST */
     zlist_t *filemeta_list = zlist_new ();
-    zs_filemeta_data_t *filemeta_data = zs_filemeta_data_new ();
-    zs_filemeta_data_set_path (filemeta_data, "a.txt");
-    zs_filemeta_data_set_size (filemeta_data, 0x1533);
-    zs_filemeta_data_set_timestamp (filemeta_data, 0x1dfa533);
-    zlist_append(filemeta_list, filemeta_data);
+    zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
+    zs_fmetadata_set_path (fmetadata, "a.txt");
+    zs_fmetadata_set_size (fmetadata, 0x1533);
+    zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
+    zlist_append(filemeta_list, fmetadata);
     
     zs_msg_send_file_list (sender, filemeta_list);
     
     /* [RECV] FILE LIST */
     self = zs_msg_recv (sink);
     zlist_t *rfilemeta_list = zs_msg_get_file_meta (self);
-    filemeta_data = zlist_first (rfilemeta_list);
-    char * path = zs_filemeta_data_get_path (filemeta_data);
-    uint64_t size = zs_filemeta_data_get_size (filemeta_data);
-    uint64_t timestamp = zs_filemeta_data_get_timestamp (filemeta_data);
+    fmetadata = zlist_first (rfilemeta_list);
+    char * path = zs_fmetadata_get_path (fmetadata);
+    uint64_t size = zs_fmetadata_get_size (fmetadata);
+    uint64_t timestamp = zs_fmetadata_get_timestamp (fmetadata);
+    printf("Command %d\n", zs_msg_get_cmd (self));
     printf("%s %"PRIx64" %"PRIx64"\n", path, size, timestamp);
 
     // cleanup
     free (path);
-    zs_filemeta_data_destroy (&filemeta_data); 
+    zs_fmetadata_destroy (&fmetadata); 
     zs_msg_destroy (&self);
-    
+   
+    /* [SEND] NO UPDATE */
+    zs_msg_send_no_update(sender);
+
+    /* [RECV] NO UPDATE */
+    self = zs_msg_recv (sink);
+    printf("Command %d\n", zs_msg_get_cmd (self));
+
+    // cleanup
+    zs_msg_destroy (&self);
+
     /* 4. close & destroy */
     zmq_close (sink);
     zmq_close (sender);
