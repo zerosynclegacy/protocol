@@ -413,12 +413,12 @@ zs_msg_send_give_credit (void *output, uint64_t credit)
 // Send CHUNK to a SP (sending peer)
 
 int
-zs_msg_send_chunk (void *output, zframe_t chunk)
+zs_msg_send_chunk (void *output, zframe_t *chunk)
 {
     assert(output);
     assert(chunk);
 
-    zs_msgt_t *msg = zs_msg_new (ZS_CMD_SEND_CHUNK);
+    zs_msg_t *msg = zs_msg_new (ZS_CMD_SEND_CHUNK);
 
     
 }

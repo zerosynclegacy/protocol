@@ -92,7 +92,7 @@ zs_msg_send_give_credit (void *output, uint64_t credit);
 
 // send SEND CHUNK
 int
-zs_msg_send_chunk (void *output, zframe_t chunk);
+zs_msg_send_chunk (void *output, zframe_t *chunk);
 
 // --------------------------------------------------------------------------
 // zs_msg_t get & set
