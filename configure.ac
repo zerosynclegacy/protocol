@@ -8,6 +8,7 @@ AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_FILES([
     Makefile
     src/Makefile
+    src/libzsync.pc
 ])
 
 #
@@ -36,5 +37,12 @@ AC_CHECK_LIB([zmq], [zmq_init], [],
 
 AC_CHECK_LIB([czmq], [zctx_new], [],
              [AC_MSG_ERROR(["Cannot link -lczmq, install zeromq czmq"])])
+
+# Checks for typedefs, structures, and compiler characteristics.
+
+AC_TYPE_SIZE_T
+AC_TYPE_UINT16_T
+AC_TYPE_UINT32_T
+AC_TYPE_UINT64_T
 
 AC_OUTPUT
