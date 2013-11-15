@@ -12,8 +12,9 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../include/msg.h"
 
-#define CHUNK_SIZE 255 
+#define CHUNK_SIZE 30000
 
 FILE* file;
 
@@ -25,12 +26,14 @@ FILE* fileHandle(){
 }
 
 int handleClient(void *serverD){
+    uint64_t seq=0;
+    uint64_t offset=0;
+
     while (true) {
         file = fileHandle();
         printf("Get the credit size...");
-        char *credit = zstr_recv(serverD);
-        printf("\n...%s set as credit size.\n",credit);
-        int chunk_size = atoi(credit);
+        zs_msg_t *rcvMsg = zs_msg_recv (serverD);
+        printf("rcvMSG: %"PRId64" \n", zs_msg_get_credit(rcvMsg));
         
         while (true) {
             if(feof(file)){
@@ -38,13 +41,16 @@ int handleClient(void *serverD){
                 break;
             }
             
-            byte *data = calloc(chunk_size, sizeof(byte));
-            
-            size_t size = fread(data, 1, chunk_size, file); //read form the file
-            
-            zframe_t *chunk = zframe_new (data, size);  //get the frame ready to send
-            zframe_send (&chunk, serverD, 0);
+            byte *data = calloc(CHUNK_SIZE, sizeof(byte)); 
+            size_t size = fread(data, 1, CHUNK_SIZE, file); //read form the file
+           
+            zframe_t *chunk = zframe_new(data, CHUNK_SIZE); 
 
+            if(zs_msg_send_chunk(serverD, seq++, "/home/burne/Documents/testdata", offset++, chunk ) == 1){
+                printf("Attention: Sending failed.\n");
+            }
+            
+            zframe_destroy(&chunk);
             free(data);
 
             if (size == 0){
