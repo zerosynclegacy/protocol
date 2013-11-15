@@ -413,14 +413,21 @@ zs_msg_send_give_credit (void *output, uint64_t credit)
 // Send CHUNK to a SP (sending peer)
 
 int
-zs_msg_send_chunk (void *output, zframe_t *chunk)
+zs_msg_send_chunk (void *output, uint64_t sequence, char *fpath, uint64_t offset, zframe_t *chunk)
 {
     assert(output);
     assert(chunk);
 
     zs_msg_t *msg = zs_msg_new (ZS_CMD_SEND_CHUNK);
+    zs_msg_set_chunk (msg, chunk);
 
-    
+    size_t frame_size = 0;
+    frame_size += sizeof(string_size_t);    // size of string 
+    frame_size += strlen(fpath);    // length of string
+    frame_size += 8;    // 8-byte sequence
+    frame_size += 8;    // 8-byte offset
+
+    return zs_msg_send (&msg, output, frame_size);
 }
 
 // --------------------------------------------------------------------------
@@ -549,11 +556,29 @@ zs_msg_get_chunk (zs_msg_t *self)
     assert(self);
     return self->chunk;     
 }
+
+// --------------------------------------------------------------------------
+// Get/Set the msg sequence
+
+void 
+zs_msg_set_sequence (zs_msg_t *self, uint64_t sequence)
+{
+   assert(self);
+   self->sequence = sequence; 
+}
+
+uint64_t
+zs_msg_get_sequence (zs_msg_t *self)
+{
+    assert(self);
+    return self->sequence;
+}
+
 // --------------------------------------------------------------------------
 // Get/Set the file meta data path
 
 void
-zs_fmetadata_set_path (zs_fmetadata_t *self, char* path) 
+zs_fmetadata_set_path (zs_fmetadata_t *self, char *path) 
 {
     assert (self);
     // free extisting path value
