@@ -237,12 +237,12 @@ zs_msg_recv (void *input)
 
                 self->fmetadata = zlist_new ();
                 while (list_size--) {
-                    zs_fmetadata_t *filemeta_data = zs_fmetadata_new ();
-                    GET_STRING (filemeta_data->path);
-                    GET_NUMBER8 (filemeta_data->size);
-                    GET_NUMBER8 (filemeta_data->timestamp);
+                    zs_fmetadata_t *fmetadata_item = zs_fmetadata_new ();
+                    GET_STRING (fmetadata_item->path);
+                    GET_NUMBER8 (fmetadata_item->size);
+                    GET_NUMBER8 (fmetadata_item->timestamp);
 
-                    zlist_append (self->fmetadata, filemeta_data); 
+                    zs_msg_fmetadata_append (self, fmetadata_item); 
                 }
                 break;
             case ZS_CMD_GIVE_CREDIT:
@@ -292,14 +292,14 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             // put trailing size of list
             PUT_NUMBER8 (zlist_size (self->fmetadata));
             // get first element from list
-            zs_fmetadata_t *filemeta_data = (zs_fmetadata_t *) zlist_first (self->fmetadata);
+            zs_fmetadata_t *filemeta_data = zs_msg_fmetadata_first (self);
             while (filemeta_data) {
                 PUT_STRING (filemeta_data->path);
                 PUT_NUMBER8 (filemeta_data->size);
                 PUT_NUMBER8 (filemeta_data->timestamp);
                 // cleanup & next list entry
                 zs_fmetadata_destroy (&filemeta_data);
-                filemeta_data = (zs_fmetadata_t *) zlist_next (self->fmetadata);
+                filemeta_data = zs_msg_fmetadata_next (self);
             }
             zlist_destroy (&self->fmetadata);
         case ZS_CMD_NO_UPDATE:
@@ -342,18 +342,18 @@ int
 zs_msg_send_file_list (void *output, zlist_t *fmetadata) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_FILE_LIST);   
-    zs_msg_set_file_meta (self, fmetadata);
-    
+    zs_msg_set_fmetadata (self, fmetadata);
+   
     // calculate frame size
     size_t frame_size = 8; // 8-byte list size
-    zs_fmetadata_t *filemeta_data = (zs_fmetadata_t *) zlist_first (self->fmetadata);
+    zs_fmetadata_t *filemeta_data = zs_msg_fmetadata_first (self);
     while (filemeta_data) {
         frame_size += sizeof(string_size_t); // string size
         frame_size += strlen(filemeta_data->path); // string length
         frame_size += 8; // 8-byte file size
         frame_size += 8; // 8-byte time stamp
         // next list entry
-        filemeta_data = (zs_fmetadata_t *) zlist_next (self->fmetadata);
+        filemeta_data = zs_msg_fmetadata_next (self);
     }
 
     return zs_msg_send (&self, output, frame_size); 
@@ -435,18 +435,66 @@ zs_msg_get_state (zs_msg_t *self)
 // --------------------------------------------------------------------------
 // Get/Set the file meta data list
 
+// Greedy method takes ownership of fmetadata.
 void 
-zs_msg_set_file_meta (zs_msg_t *self, zlist_t *fmetadata) 
+zs_msg_set_fmetadata (zs_msg_t *self, zlist_t *fmetadata) 
 {
     assert (self);
+   
+    // cleanup existing 
+    if(self->fmetadata) {
+        zs_fmetadata_t *fmetadata_item = (zs_fmetadata_t *) zlist_first (self->fmetadata);
+        while (fmetadata_item) {
+            zs_fmetadata_destroy (&fmetadata_item);
+            // next list entry
+            fmetadata_item = (zs_fmetadata_t *) zlist_next (self->fmetadata);
+        }
+        zlist_destroy (&self->fmetadata);        
+    }
+
     self->fmetadata = fmetadata;
 }
 
 zlist_t *
-zs_msg_get_file_meta (zs_msg_t *self) 
+zs_msg_get_fmetadata (zs_msg_t *self) 
 {
     assert (self);
     return self->fmetadata;
+}
+
+// Iterate through fmetadata zlist
+
+zs_fmetadata_t *
+zs_msg_fmetadata_first (zs_msg_t *self)
+{
+    assert (self);
+    if (self->fmetadata)
+        return (zs_fmetadata_t *) (zlist_first (self->fmetadata));
+    else
+        return NULL;
+}
+
+zs_fmetadata_t *
+zs_msg_fmetadata_next (zs_msg_t *self)
+{
+    assert (self);
+    if (self->fmetadata)
+        return (zs_fmetadata_t *) (zlist_next (self->fmetadata));
+    else
+        return NULL;
+}
+
+void
+zs_msg_fmetadata_append (zs_msg_t *self, zs_fmetadata_t *fmetadata_item)
+{
+    // Format into newly allocated string
+    assert (self);
+    
+    if (!self->fmetadata) {
+        self->fmetadata = zlist_new ();
+    }
+    //TODO copy item
+    zlist_append (self->fmetadata, fmetadata_item);
 }
 
 // --------------------------------------------------------------------------

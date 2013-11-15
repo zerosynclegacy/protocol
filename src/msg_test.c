@@ -45,7 +45,7 @@ main (void)
     
     /* [RECV] FILE LIST */
     self = zs_msg_recv (sink);
-    zlist_t *rfilemeta_list = zs_msg_get_file_meta (self);
+    zlist_t *rfilemeta_list = zs_msg_get_fmetadata (self);
     fmetadata = zlist_first (rfilemeta_list);
     char * path = zs_fmetadata_get_path (fmetadata);
     uint64_t size = zs_fmetadata_get_size (fmetadata);

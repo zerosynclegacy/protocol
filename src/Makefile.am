@@ -1,7 +1,7 @@
 lib_LTLIBRARIES = libzsync.la
 
-#pkgconfigdir = $(libdir)/pkgconfig
-#pkgconfig_DATA =libzsync.pc
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA =libzsync.pc
 
 include_HEADERS = \
     ../include/msg.h
