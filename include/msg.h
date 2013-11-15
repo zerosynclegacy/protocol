@@ -33,7 +33,8 @@ extern "C" {
 #define ZS_CMD_FILE_LIST 0x2
 #define ZS_CMD_NO_UPDATE 0x3
 #define ZS_CMD_REQUEST_FILES 0x4
-#define ZS_CMD_GIVE_CREDIT 0x5 
+#define ZS_CMD_GIVE_CREDIT 0x5
+#define ZS_CMD_SEND_CHUNK 0x6 
 
 // Opaque class structure
 typedef struct _zs_msg_t zs_msg_t;
@@ -89,6 +90,10 @@ zs_msg_send_request_files (void *output, zlist_t *fpaths);
 int
 zs_msg_send_give_credit (void *output, uint64_t credit);
 
+// send SEND CHUNK
+int
+zs_msg_send_chunk (void *output, zframe_t chunk);
+
 // --------------------------------------------------------------------------
 // zs_msg_t get & set
 
@@ -135,6 +140,13 @@ zs_msg_set_credit (zs_msg_t *self, uint64_t credit);
 
 uint64_t
 zs_msg_get_credit (zs_msg_t *self);
+
+// getter/setter message chunk
+void
+zs_msg_set_chunk (zs_msg_t *self, zframe_t *chunk);
+
+zframe_t* 
+zs_msg_get_chunk (zs_msg_t *self);
 
 
 // --------------------------------------------------------------------------

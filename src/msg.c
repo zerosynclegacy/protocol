@@ -37,6 +37,9 @@ struct _zs_msg_t {
     byte *needle;           // read/write pointer for serialization
     byte *ceiling;          // valid upper limit for needle
     uint64_t state;
+    uint64_t sequence;
+    uint64_t offset;
+    zframe_t *chunk;
     zlist_t *fmetadata;     // zlist of file meta data list
     zlist_t *fpaths;        // zlist of file paths
     uint64_t credit;        // given credit for RP 
@@ -167,8 +170,10 @@ void
 zs_msg_destroy (zs_msg_t **self_p) 
 {
     assert (self_p);
+    
     if (*self_p) {
         zs_msg_t *self = *self_p;
+        zframe_destroy(&self->chunk),
 
         // Free object itself
         free (self);
@@ -404,6 +409,20 @@ zs_msg_send_give_credit (void *output, uint64_t credit)
     return zs_msg_send (&msg, output, frame_size); 
 }
 
+// -------------------------------------------------------------------------
+// Send CHUNK to a SP (sending peer)
+
+int
+zs_msg_send_chunk (void *output, zframe_t chunk)
+{
+    assert(output);
+    assert(chunk);
+
+    zs_msgt_t *msg = zs_msg_new (ZS_CMD_SEND_CHUNK);
+
+    
+}
+
 // --------------------------------------------------------------------------
 // Get the message command
 
@@ -514,6 +533,22 @@ zs_msg_get_credit (zs_msg_t *self)
     return self->credit;
 }
 
+// --------------------------------------------------------------------------
+// Get/Set the chunk
+
+void 
+zs_msg_set_chunk (zs_msg_t *self, zframe_t *chunk)
+{
+    assert(self);
+    self->chunk = chunk; 
+} 
+
+zframe_t*
+zs_msg_get_chunk (zs_msg_t *self)
+{
+    assert(self);
+    return self->chunk;     
+}
 // --------------------------------------------------------------------------
 // Get/Set the file meta data path
 

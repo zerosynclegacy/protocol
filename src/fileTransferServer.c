@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define CHUNK_SIZE 255 
+
 FILE* file;
 
 /* not complete - here should be the handling from files done later  */
