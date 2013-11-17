@@ -254,6 +254,9 @@ zs_msg_recv (void *input)
             case ZS_CMD_GIVE_CREDIT:
                 GET_NUMBER8(self->credit);      
                 break;
+            case ZS_CMD_SEND_CHUNK:
+                 
+                break;
             default:
                 break;
         }
@@ -380,7 +383,6 @@ zs_msg_send_file_list (void *output, zlist_t *fmetadata)
     return zs_msg_send (&self, output, frame_size); 
 }
 
-
 // -------------------------------------------------------------------------
 // Send the NO UPDATE to the RP in one step 
 
@@ -392,7 +394,6 @@ zs_msg_send_no_update (void *output)
     
     return zs_msg_send (&self, output, frame_size);
 }
-
 
 // -------------------------------------------------------------------------
 // Send the REQUEST FILES to the RP in one step 
@@ -656,7 +657,6 @@ zs_fmetadata_get_path (zs_fmetadata_t *self)
     return path;
 }    
 
-
 // --------------------------------------------------------------------------
 // Get/Set the file meta data size
 
@@ -673,7 +673,6 @@ zs_fmetadata_get_size (zs_fmetadata_t *self)
     assert (self);
     return self->size;
 }    
-
 
 // --------------------------------------------------------------------------
 // Get/Set the file meta data timestamp

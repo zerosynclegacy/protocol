@@ -25,22 +25,24 @@ int rcv_chunks(void *dealer){
 
     while (true) {
        size_t size;
-       zframe_t *frame = zframe_recv(dealer);  //Each chunk is coded as a frame - now we receive it from our dealer socket
-       byte *data = zframe_data(frame);
 
-       if(fwrite(data, 1, zframe_size(frame), rcvdFile) < 0){
+       zs_msg_t *msg = zs_msg_recv (dealer);
+       zframe_t *chunk_frame = zs_msg_get_chunk(msg);
+       byte *data = zframe_data(chunk_frame);
+
+       if(fwrite(data, 1, zframe_size(chunk_frame), rcvdFile) < 0){
            printf("Oh shit!\n");
        }
 
-       if (!frame){
+       if (!chunk_frame){
            size=0;
            printf("No more chunk received.\n");
            break; // Shutting down, quit
        }
        chunks++;
    
-       size = zframe_size(frame);
-       zframe_destroy(&frame);
+       size = zframe_size(chunk_frame);
+       zframe_destroy(&chunk_frame);
        total += size;
        
        if (size < credit){

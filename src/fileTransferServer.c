@@ -26,8 +26,8 @@ FILE* fileHandle(){
 }
 
 int handleClient(void *serverD){
-    uint64_t seq=0;
-    uint64_t offset=0;
+    uint64_t seq = 0;
+    uint64_t offset = 0;
 
     while (true) {
         file = fileHandle();
