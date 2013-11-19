@@ -266,7 +266,8 @@ zs_msg_recv (void *input)
     // parse message
     GET_NUMBER2(self->signature);
     GET_NUMBER1(self->cmd);
-  
+ 
+    // TODO set ceiling for every command 
     // silently ignore everything with wrong signature     
     if (self->signature == SIGNATURE) { 
         switch (self->cmd) {
@@ -284,7 +285,7 @@ zs_msg_recv (void *input)
                     GET_STRING (fmetadata_item->path);
                     GET_NUMBER8 (fmetadata_item->size);
                     GET_NUMBER8 (fmetadata_item->timestamp);
-                    
+                    // TODO support checksum 
                     zs_msg_fmetadata_append (self, fmetadata_item); 
                 }
                 break;
@@ -348,6 +349,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
                 PUT_STRING (filemeta_data->path);
                 PUT_NUMBER8 (filemeta_data->size);
                 PUT_NUMBER8 (filemeta_data->timestamp);
+                // TODO support checksum
                 // cleanup & next list entry
                 zs_fmetadata_destroy (&filemeta_data);
                 filemeta_data = zs_msg_fmetadata_next (self);
@@ -415,6 +417,7 @@ zs_msg_send_file_list (void *output, zlist_t *fmetadata)
         frame_size += strlen(filemeta_data->path); // string length
         frame_size += 8; // 8-byte file size
         frame_size += 8; // 8-byte time stamp
+        // TODO support checksum
         // next list entry
         filemeta_data = zs_msg_fmetadata_next (self);
     }
