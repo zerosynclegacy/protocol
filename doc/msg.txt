@@ -1,52 +1,13 @@
-/* =========================================================================
-    zs_msg - work with zerosync messages
+msg(3)
+======
 
-   -------------------------------------------------------------------------
-   Copyright (c) 2013 Kevin Sapper, Bernhard Finger
-   Copyright other contributors as noted in the AUTHORS file.
-   
-   This file is part of ZeroSync, see http://zerosync.org.
-   
-   This is free software; you can redistribute it and/or modify it under
-   the terms of the GNU Lesser General Public License as published by the
-   Free Software Foundation; either version 3 of the License, or (at your
-   option) any later version.
-   This software is distributed in the hope that it will be useful, but
-   WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTA-
-   BILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General
-   Public License for more details.
-   
-   You should have received a copy of the GNU Lesser General Public License
-   along with this program. If not, see http://www.gnu.org/licenses/.
-   =========================================================================
-*/
+NAME
+----
+msg - work with zerosync messages
 
-#ifndef __MSG_H_INCLUDED__
-#define __MSG_H_INCLUDED__
- 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Message commands 
-#define ZS_CMD_LAST_STATE 0x1
-#define ZS_CMD_FILE_LIST 0x2
-#define ZS_CMD_NO_UPDATE 0x3
-#define ZS_CMD_REQUEST_FILES 0x4
-#define ZS_CMD_GIVE_CREDIT 0x5
-#define ZS_CMD_SEND_CHUNK 0x6 
-
-// Opaque class structure
-typedef struct _zs_msg_t zs_msg_t;
-typedef struct _zs_fmetadata_t zs_fmetadata_t;
-
-// Strings might change due to UTF encoding
-typedef uint16_t string_size_t;
-
-// --------------------------------------------------------------------------
-// Create & Destroy
-
-// @interface
+SYNOPSIS
+--------
+----
 // Contructor, creates new zs message
 zs_msg_t *
 zs_msg_new (int cmd);
@@ -209,11 +170,109 @@ zs_fmetadata_get_timestamp (zs_fmetadata_t *self);
 // Self test this class
 int
     zs_msg_test ();
-// @end
+----
+
+DESCRIPTION
+-----------
+
+zs_msg - work with ZeroSync messages
 
 
-#ifdef __cplusplus
-}
-#endif
+EXAMPLE
+-------
+.From msg_test method
+----
+    /* 1. create zmq context */
+    void *context = zmq_ctx_new ();
+    /* 2. create sockets */
+    void *sink = zmq_socket (context, ZMQ_DEALER);
+    void *sender = zmq_socket (context, ZMQ_DEALER);
+    /* 3. bind/connect sockets */
+    int rc = zmq_bind (sink, "inproc://zframe.test");
+    assert(rc == 0);
+    zmq_connect (sender, "inproc://zframe.test");
+    
+    /* [SEND] LAST STATE */
+    zs_msg_send_last_state (sender, 0xFF);
+    
+    /* [RECV] LAST STATE */
+    zs_msg_t *self = zs_msg_recv (sink);
+    uint64_t last_state = zs_msg_get_state (self);
+    printf("Command %d\n", zs_msg_get_cmd (self));
+    printf("last state %"PRIx64"\n", last_state);
+    
+    // cleanup 
+    zs_msg_destroy (&self);
 
-#endif
+    /* [SEND] FILE LIST */
+    zlist_t *filemeta_list = zlist_new ();
+    zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
+    zs_fmetadata_set_path (fmetadata, "%s", "a.txt");
+    zs_fmetadata_set_size (fmetadata, 0x1533);
+    zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
+    zlist_append(filemeta_list, fmetadata);
+    zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
+    zs_fmetadata_set_path (fmetadata2, "%s", "b.txt");
+    zs_fmetadata_set_size (fmetadata2, 0x1544);
+    zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
+    zlist_append(filemeta_list, fmetadata2);
+
+    
+    zs_msg_send_file_list (sender, filemeta_list);
+    
+    /* [RECV] FILE LIST */
+    self = zs_msg_recv (sink);
+    fmetadata = zs_msg_fmetadata_first (self);
+    printf("Command %d\n", zs_msg_get_cmd (self));
+    while (fmetadata) {
+        char *path = zs_fmetadata_get_path (fmetadata);
+        uint64_t size = zs_fmetadata_get_size (fmetadata);
+        uint64_t timestamp = zs_fmetadata_get_timestamp (fmetadata);
+        printf("%s %"PRIx64" %"PRIx64"\n", path, size, timestamp);
+        
+        free (path);
+        fmetadata = zs_msg_fmetadata_next (self);
+    }
+
+    // cleanup
+    zs_msg_destroy (&self);
+   
+    /* [SEND] NO UPDATE */
+    zs_msg_send_no_update(sender);
+
+    /* [RECV] NO UPDATE */
+    self = zs_msg_recv (sink);
+    printf("Command %d\n", zs_msg_get_cmd (self));
+    
+    // cleanup
+    zs_msg_destroy (&self);
+   
+
+    /* [SEND] REQUEST FILES */
+    zlist_t *paths = zlist_new ();
+    zlist_append(paths, "test1.txt");
+    zlist_append(paths, "test2.txt");
+    zlist_append(paths, "test3.txt");
+
+    zs_msg_send_request_files (sender, paths);
+
+    /* [RECV] REQUEST FILES */
+    self = zs_msg_recv (sink);
+    printf("Command %d\n", zs_msg_get_cmd (self));
+    char *path = zs_msg_fpaths_first (self);
+    while (path) {
+        printf("%s\n", path);
+        // next
+        free(path);
+        path = zs_msg_fpaths_next (self);
+    }
+
+    // cleanup
+    zs_msg_destroy (&self);
+
+    /* 4. close & destroy */
+    zmq_close (sink);
+    zmq_close (sender);
+    zmq_ctx_destroy (context);
+----
+
