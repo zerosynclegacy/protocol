@@ -92,8 +92,7 @@ zs_msg_send_give_credit (void *output, uint64_t credit);
 
 // send SEND CHUNK
 int
-zs_msg_send_chunk (void *output, zframe_t *chunk);
-
+zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk);
 // --------------------------------------------------------------------------
 // zs_msg_t get & set
 
@@ -158,6 +157,27 @@ zs_msg_set_chunk (zs_msg_t *self, zframe_t *chunk);
 
 zframe_t* 
 zs_msg_get_chunk (zs_msg_t *self);
+
+// getter/setter message sequence
+void
+zs_msg_set_sequence (zs_msg_t *self, uint64_t seq);
+
+uint64_t
+zs_msg_get_sequence (zs_msg_t *self);
+
+// getter/setter message file-path
+void
+zs_msg_set_file_path (zs_msg_t *self, char *format, ...);
+
+char*
+zs_msg_get_file_path (zs_msg_t *self);
+
+// getter/setter message offset
+void
+zs_msg_set_offset (zs_msg_t *self, uint64_t offset);
+
+uint64_t
+zs_msg_get_offset (zs_msg_t *self);
 
 
 // --------------------------------------------------------------------------

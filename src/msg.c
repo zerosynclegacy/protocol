@@ -40,6 +40,7 @@ struct _zs_msg_t {
     uint64_t state;
     uint64_t sequence;
     uint64_t offset;
+    char *file_path;
     zframe_t *chunk;
     zlist_t *fmetadata;     // zlist of file meta data list
     zlist_t *fpaths;        // zlist of file paths
@@ -300,6 +301,13 @@ zs_msg_recv (void *input)
             case ZS_CMD_GIVE_CREDIT:
                 GET_NUMBER8(self->credit);      
                 break;
+            case ZS_CMD_SEND_CHUNK:
+                GET_NUMBER8 (self->sequence);
+                GET_STRING (self->file_path);
+                GET_NUMBER8 (self->offset);
+                
+                self->chunk = zframe_recv (input);
+                break;
             default:
                 break;
         }
@@ -324,6 +332,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
 
     zs_msg_t *self = *self_p; 
     string_size_t string_size;
+    int frame_flags = 0;
    
     // frame size appendix
     frame_size = frame_size + 2 + 1;          //  Signature and command ID
@@ -373,15 +382,29 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
         case ZS_CMD_GIVE_CREDIT:
             PUT_NUMBER8 (self->credit);
             break;
+        case ZS_CMD_SEND_CHUNK:
+            PUT_NUMBER8 (self->sequence);
+            PUT_STRING (self->file_path);
+            PUT_NUMBER8 (self->offset);
+            frame_flags = ZFRAME_MORE;
         default:
             break;
     }
     
-    /* Send data frame */
-    if (zframe_send (&data_frame, output, 0)) {
-        zframe_destroy (&data_frame);
+       /* Send data frame */
+    if (zframe_send (&data_frame, output, frame_flags)) {
+               zframe_destroy (&data_frame);
     }
-    
+
+    /* Send frames */
+    if (self->cmd == ZS_CMD_SEND_CHUNK) {
+        
+        /* followed by sending the chunk frame */
+        if (zframe_send (&self->chunk, output, 0)) {
+            zframe_destroy (&self->chunk);
+        }
+    }
+
     /* Cleanup */
     zs_msg_destroy (&self);
 
@@ -425,7 +448,6 @@ zs_msg_send_file_list (void *output, zlist_t *fmetadata)
     return zs_msg_send (&self, output, frame_size); 
 }
 
-
 // -------------------------------------------------------------------------
 // Send the NO UPDATE to the RP in one step 
 
@@ -437,7 +459,6 @@ zs_msg_send_no_update (void *output)
     
     return zs_msg_send (&self, output, frame_size);
 }
-
 
 // -------------------------------------------------------------------------
 // Send the REQUEST FILES to the RP in one step 
@@ -468,7 +489,6 @@ int
 zs_msg_send_give_credit (void *output, uint64_t credit)
 { 
     assert(output);
-    assert(credit);
 
     zs_msg_t *msg = zs_msg_new (ZS_CMD_GIVE_CREDIT);
     zs_msg_set_credit (msg, credit); 
@@ -481,14 +501,24 @@ zs_msg_send_give_credit (void *output, uint64_t credit)
 // Send CHUNK to a SP (sending peer)
 
 int
-zs_msg_send_chunk (void *output, zframe_t *chunk)
+zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk)
 {
     assert(output);
     assert(chunk);
 
     zs_msg_t *msg = zs_msg_new (ZS_CMD_SEND_CHUNK);
+    zs_msg_set_chunk (msg, chunk);
+    zs_msg_set_sequence (msg, sequence);
+    zs_msg_set_file_path (msg, file_path);
+    zs_msg_set_offset (msg, offset);
 
-    
+    size_t frame_size = 0;
+    frame_size += sizeof(string_size_t);    // size of string 
+    frame_size += strlen(file_path);    // length of string
+    frame_size += 8;    // 8-byte sequence
+    frame_size += 8;    // 8-byte offset
+
+    return zs_msg_send (&msg, output, frame_size);
 }
 
 // --------------------------------------------------------------------------
@@ -673,6 +703,61 @@ zs_msg_get_chunk (zs_msg_t *self)
     assert(self);
     return self->chunk;     
 }
+
+// --------------------------------------------------------------------------
+// Get/Set the msg sequence
+
+void 
+zs_msg_set_sequence (zs_msg_t *self, uint64_t sequence)
+{
+   assert(self);
+   self->sequence = sequence; 
+}
+
+uint64_t
+zs_msg_get_sequence (zs_msg_t *self)
+{
+    assert(self);
+    return self->sequence;
+}
+
+void
+zs_msg_set_file_path (zs_msg_t *self, char *format, ...)
+{
+    // Format into newly allocated string
+    assert (self);
+    va_list argptr;
+    va_start (argptr, format);
+    free (self->file_path);
+    self->file_path = (char *) malloc (STRING_MAX + 1);
+    assert (self->file_path);
+    vsnprintf (self->file_path, STRING_MAX, format, argptr);
+    va_end (argptr);
+}
+
+char*
+zs_msg_get_file_path (zs_msg_t *self)
+{
+    assert(self);
+    return self->file_path;
+}
+
+// --------------------------------------------------------------------------
+// Get/Set the msg offset
+
+void
+zs_msg_set_offset (zs_msg_t *self, uint64_t offset)
+{
+    assert(self);
+    self->offset = offset;
+}
+
+uint64_t
+zs_msg_get_offset (zs_msg_t *self)
+{
+    assert(self);
+    return self->offset;
+}
 // --------------------------------------------------------------------------
 // Get/Set the file meta data path
 
@@ -700,7 +785,6 @@ zs_fmetadata_get_path (zs_fmetadata_t *self)
     return path;
 }    
 
-
 // --------------------------------------------------------------------------
 // Get/Set the file meta data size
 
@@ -717,7 +801,6 @@ zs_fmetadata_get_size (zs_fmetadata_t *self)
     assert (self);
     return self->size;
 }    
-
 
 // --------------------------------------------------------------------------
 // Get/Set the file meta data timestamp
