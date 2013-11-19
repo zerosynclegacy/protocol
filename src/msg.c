@@ -421,7 +421,6 @@ int
 zs_msg_send_give_credit (void *output, uint64_t credit)
 { 
     assert(output);
-    assert(credit);
 
     zs_msg_t *msg = zs_msg_new (ZS_CMD_GIVE_CREDIT);
     zs_msg_set_credit (msg, credit); 

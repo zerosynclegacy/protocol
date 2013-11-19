@@ -40,20 +40,11 @@ int rcv_chunks(void *dealer){
            printf("Oh shit!\n");
        }
 
-/*       if (!chunk_frame){
-           size=0;
-           printf("No more chunk received.\n");
-           break; // Shutting down, quit
-       }*/
        chunks++;
    
        size = zframe_size(chunk_frame);
        total += size;
        
-       /*if (size == credit){
-           printf("%d bytes totally received.\n", (int)total);
-           break; // Whole file received
-       }*/
     }
     fclose(rcvdFile);
     return chunks;
