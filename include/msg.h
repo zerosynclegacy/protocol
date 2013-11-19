@@ -134,6 +134,17 @@ zs_msg_set_fpaths (zs_msg_t *self, zlist_t *fpaths);
 zlist_t *
 zs_msg_get_fpaths (zs_msg_t *self);
 
+// Iterate fpaths
+
+char *
+zs_msg_fpaths_first (zs_msg_t *self);
+
+char *
+zs_msg_fpaths_next (zs_msg_t *self);
+
+void
+zs_msg_fpaths_append (zs_msg_t *self, char *format, ...);
+
 // getter/setter message credit
 void
 zs_msg_set_credit (zs_msg_t *self, uint64_t credit);
@@ -155,7 +166,7 @@ zs_msg_get_chunk (zs_msg_t *self);
 
 // getter/setter file path
 void
-zs_fmetadata_set_path (zs_fmetadata_t *self, char* path);
+zs_fmetadata_set_path (zs_fmetadata_t *self, char* format, ...);
 
 char *
 zs_fmetadata_get_path (zs_fmetadata_t *self);
