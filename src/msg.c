@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdarg.h>
 #include <assert.h>
 #include "../include/msg.h"
 
@@ -166,6 +167,26 @@ zs_msg_new (int cmd)
 // --------------------------------------------------------------------------
 // Destroy the zs_msg
 
+void
+zs_msg_fmetadata_destroy (zs_msg_t **self_p) 
+{
+    assert (self_p);
+    
+    if (*self_p) {
+        zs_msg_t *self = *self_p;
+        
+        if (self->fmetadata) {
+            zs_fmetadata_t *fmetadata_item = zs_msg_fmetadata_first (self);
+            while (fmetadata_item) {
+                zs_fmetadata_destroy (&fmetadata_item);
+                // next list entry
+                fmetadata_item = zs_msg_fmetadata_next (self);
+            }
+            zlist_destroy (&self->fmetadata);
+        }
+    }
+}
+
 void 
 zs_msg_destroy (zs_msg_t **self_p) 
 {
@@ -173,8 +194,11 @@ zs_msg_destroy (zs_msg_t **self_p)
     
     if (*self_p) {
         zs_msg_t *self = *self_p;
-        zframe_destroy(&self->chunk),
-
+        
+        zs_msg_fmetadata_destroy (&self);    
+        zlist_destroy (&self->fpaths); 
+        zframe_destroy(&self->chunk);
+    
         // Free object itself
         free (self);
         *self_p = NULL;
@@ -198,6 +222,7 @@ void
 zs_fmetadata_destroy (zs_fmetadata_t **self_p) 
 {
     assert (self_p);
+
     if (*self_p) {
         zs_fmetadata_t *self = *self_p;
         
@@ -208,8 +233,22 @@ zs_fmetadata_destroy (zs_fmetadata_t **self_p)
     }
 }
 
+zs_fmetadata_t *
+zs_fmetadata_dup (zs_fmetadata_t *self)
+{
+    assert (self);
+
+    zs_fmetadata_t *self_dup = zs_fmetadata_new ();
+    
+    zs_fmetadata_set_path (self_dup, "%s", self->path);
+    zs_fmetadata_set_size (self_dup, self->size);
+    zs_fmetadata_set_timestamp (self_dup, self->timestamp);
+
+    return self_dup;
+}
+
 // --------------------------------------------------------------------------
-// Receive and parse a fmq_msg from the socket. Returns new object or
+// Receive and parse a zs_msg from the socket. Returns new object or
 // NULL if error. Will block if there's no message waiting.
 
 zs_msg_t *
@@ -240,14 +279,21 @@ zs_msg_recv (void *input)
                 // file meta data count
                 GET_NUMBER8(list_size);
 
-                self->fmetadata = zlist_new ();
                 while (list_size--) {
                     zs_fmetadata_t *fmetadata_item = zs_fmetadata_new ();
                     GET_STRING (fmetadata_item->path);
                     GET_NUMBER8 (fmetadata_item->size);
                     GET_NUMBER8 (fmetadata_item->timestamp);
-
+                    
                     zs_msg_fmetadata_append (self, fmetadata_item); 
+                }
+                break;
+            case ZS_CMD_REQUEST_FILES:
+                GET_NUMBER8(list_size);
+                while (list_size--) {
+                    char *path;
+                    GET_STRING(path);
+                    zs_msg_fpaths_append (self, "%s", path); 
                 }
                 break;
             case ZS_CMD_GIVE_CREDIT:
@@ -309,6 +355,18 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             zlist_destroy (&self->fmetadata);
         case ZS_CMD_NO_UPDATE:
             // No data to put
+            break;
+        case ZS_CMD_REQUEST_FILES:
+            // put trailing size of list
+            PUT_NUMBER8 (zlist_size (self->fpaths));
+            // get first element from list
+            char *path = zs_msg_fpaths_first (self);
+            while (path) {
+                PUT_STRING (path);
+                // next element
+                path = zs_msg_fpaths_next (self);
+            }
+            zlist_destroy (&self->fpaths);
             break;
         case ZS_CMD_GIVE_CREDIT:
             PUT_NUMBER8 (self->credit);
@@ -385,10 +443,17 @@ int
 zs_msg_send_request_files (void *output, zlist_t *fpaths)
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_REQUEST_FILES);
-    //TODO
-    //zs_msg_set_fpaths (self, fpaths);
+    
+    zs_msg_set_fpaths (self, fpaths);
 
     size_t frame_size = 8; // 8-byte list size
+    char* path = zs_msg_fpaths_first (self);
+    while (path) {
+        frame_size += sizeof (string_size_t);
+        frame_size += strlen (path);
+        // next
+        path = zs_msg_fpaths_next (self);
+    }
 
     return zs_msg_send (&self, output, frame_size);
 }
@@ -461,15 +526,7 @@ zs_msg_set_fmetadata (zs_msg_t *self, zlist_t *fmetadata)
     assert (self);
    
     // cleanup existing 
-    if(self->fmetadata) {
-        zs_fmetadata_t *fmetadata_item = (zs_fmetadata_t *) zlist_first (self->fmetadata);
-        while (fmetadata_item) {
-            zs_fmetadata_destroy (&fmetadata_item);
-            // next list entry
-            fmetadata_item = (zs_fmetadata_t *) zlist_next (self->fmetadata);
-        }
-        zlist_destroy (&self->fmetadata);        
-    }
+    zs_msg_fmetadata_destroy (&self);
 
     self->fmetadata = fmetadata;
 }
@@ -506,14 +563,78 @@ zs_msg_fmetadata_next (zs_msg_t *self)
 void
 zs_msg_fmetadata_append (zs_msg_t *self, zs_fmetadata_t *fmetadata_item)
 {
-    // Format into newly allocated string
     assert (self);
+    // Format into newly allocated string
     
     if (!self->fmetadata) {
         self->fmetadata = zlist_new ();
     }
-    //TODO copy item
-    zlist_append (self->fmetadata, fmetadata_item);
+    zlist_append (self->fmetadata, zs_fmetadata_dup (fmetadata_item));
+}
+
+// --------------------------------------------------------------------------
+// Get/Set the fpaths field
+
+zlist_t *
+zs_msg_fpaths (zs_msg_t *self)
+{
+    assert (self);
+    return self->fpaths;
+}
+
+// Greedy function, takes ownership of fpaths; if you don't want that
+// then use zlist_dup() to pass a copy of fpaths
+
+void
+zs_msg_set_fpaths (zs_msg_t *self, zlist_t *fpaths)
+{
+    assert (self);
+    zlist_destroy (&self->fpaths);
+    self->fpaths = fpaths;
+}
+
+// --------------------------------------------------------------------------
+// Iterate through the fpaths field, and append a fpaths value
+
+char *
+zs_msg_fpaths_first (zs_msg_t *self)
+{
+    assert (self);
+    if (self->fpaths)
+        return (char *) (zlist_first (self->fpaths));
+    else
+        return NULL;
+}
+
+char *
+zs_msg_fpaths_next (zs_msg_t *self)
+{
+    assert (self);
+    if (self->fpaths)
+        return (char *) (zlist_next (self->fpaths));
+    else
+        return NULL;
+}
+
+void
+zs_msg_fpaths_append (zs_msg_t *self, char *format, ...)
+{
+    // Format into newly allocated string
+    assert (self);
+    va_list argptr;
+    va_start (argptr, format);
+    char *string = (char *) malloc (STRING_MAX + 1);
+    assert (string);
+    vsnprintf (string, STRING_MAX, format, argptr);
+    va_end (argptr);
+    
+    // Attach string to list
+    if (!self->fpaths) {
+        self->fpaths = zlist_new ();
+        zlist_autofree (self->fpaths);
+    }
+    zlist_append (self->fpaths, string);
+    free (string);
 }
 
 // --------------------------------------------------------------------------
@@ -553,16 +674,17 @@ zs_msg_get_chunk (zs_msg_t *self)
 // Get/Set the file meta data path
 
 void
-zs_fmetadata_set_path (zs_fmetadata_t *self, char* path) 
+zs_fmetadata_set_path (zs_fmetadata_t *self, char *format, ...) 
 {
     assert (self);
-    // free extisting path value
-    if(self->path) {
-        free(self->path);
-    }   
-    // copy string to struct
-    self->path = malloc(strlen(path) * sizeof(char));
-    strcpy(self->path, path);
+    // Format into newly allocated string
+    va_list argptr;
+    va_start (argptr, format);
+    free (self->path);
+    self->path = (char *) malloc (STRING_MAX + 1);
+    assert (self->path);
+    vsnprintf (self->path, STRING_MAX, format, argptr);
+    va_end (argptr);
 }
 
 char *
@@ -609,3 +731,4 @@ zs_fmetadata_get_timestamp (zs_fmetadata_t *self) {
     assert (self);
     return self->timestamp;
 }
+
