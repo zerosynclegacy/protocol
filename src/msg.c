@@ -255,7 +255,11 @@ zs_msg_recv (void *input)
                 GET_NUMBER8(self->credit);      
                 break;
             case ZS_CMD_SEND_CHUNK:
-                 
+                GET_NUMBER8 (self->sequence);
+                GET_STRING (self->file_path);
+                GET_NUMBER8 (self->offset);
+                
+                self->chunk = zframe_recv (input);
                 break;
             default:
                 break;
@@ -336,8 +340,8 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
     if (self->cmd == ZS_CMD_SEND_CHUNK) {
         
         /* followed by sending the chunk frame */
-        if (zframe_send (self->chunk, output, 0)) {
-            zframe_destroy (self->chunk);
+        if (zframe_send (&self->chunk, output, 0)) {
+            zframe_destroy (&self->chunk);
         }
     }
 

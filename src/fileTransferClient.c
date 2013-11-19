@@ -17,38 +17,43 @@
 
 /* this function is handling the receiving of the chunks sent from server  */
 int rcv_chunks(void *dealer){
-    size_t total=0;
-    size_t chunks=0;
+    size_t total = 0;
+    size_t chunks = 0;
+    size_t size = 0;
 
     FILE *rcvdFile = fopen("/home/burne/Documents/rcvtestdata", "wb"); 
     assert(rcvdFile);
 
     while (true) {
-       size_t size;
-
-       zs_msg_t *msg = zs_msg_recv (dealer);
+       zs_msg_t *msg = zs_msg_recv(dealer);
        zframe_t *chunk_frame = zs_msg_get_chunk(msg);
+       printf("%d bytes of chunk received.\n", (int)zframe_size(chunk_frame));
+
+       if (zframe_size(chunk_frame) == 0){
+           printf("File completely received.\n");
+           break; 
+       }
+       
        byte *data = zframe_data(chunk_frame);
 
        if(fwrite(data, 1, zframe_size(chunk_frame), rcvdFile) < 0){
            printf("Oh shit!\n");
        }
 
-       if (!chunk_frame){
+/*       if (!chunk_frame){
            size=0;
            printf("No more chunk received.\n");
            break; // Shutting down, quit
-       }
+       }*/
        chunks++;
    
        size = zframe_size(chunk_frame);
-       zframe_destroy(&chunk_frame);
        total += size;
        
-       if (size < credit){
+       /*if (size == credit){
            printf("%d bytes totally received.\n", (int)total);
            break; // Whole file received
-       }
+       }*/
     }
     fclose(rcvdFile);
     return chunks;
