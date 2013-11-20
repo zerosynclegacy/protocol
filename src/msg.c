@@ -1,5 +1,5 @@
 /* =========================================================================
-    msg - work with zerosync messages
+    zs_msg - work with zerosync messages
 
    -------------------------------------------------------------------------
    Copyright (c) 2013 Kevin Sapper, Bernhard Finger
@@ -23,7 +23,13 @@
 
 /*
 @header
-    zs_msg - work with ZeroSync messages
+    ZeroSync messages module
+
+    When sending messages the ownership of passed arguments are transfered 
+    to the message module.
+
+    When receiving messages the ownership of the of the passed message struct
+    stays with the message module.
 @discuss
 @end
 */
@@ -47,6 +53,7 @@ struct _zs_msg_t {
 
 struct _zs_fmetadata_t {
     char *path;             // file path + file name
+    int operation;
     uint64_t size;          // file size in bytes
     uint64_t timestamp;     // UNIX timestamp
     uint64_t checksum;      // SHA-3 512
@@ -225,7 +232,7 @@ zs_fmetadata_destroy (zs_fmetadata_t **self_p)
     if (*self_p) {
         zs_fmetadata_t *self = *self_p;
         
-        free(self->path);
+        free (self->path);
         // Free object itself
         free (self);
         *self_p = NULL;
@@ -240,6 +247,7 @@ zs_fmetadata_dup (zs_fmetadata_t *self)
     zs_fmetadata_t *self_dup = zs_fmetadata_new ();
     
     zs_fmetadata_set_path (self_dup, "%s", self->path);
+    zs_fmetadata_set_operation (self_dup, self->operation);
     zs_fmetadata_set_size (self_dup, self->size);
     zs_fmetadata_set_timestamp (self_dup, self->timestamp);
 
@@ -274,14 +282,16 @@ zs_msg_recv (void *input)
                 self->ceiling = self->needle + 11;
                 GET_NUMBER8(self->state);
                 break;
-            case ZS_CMD_FILE_LIST:
+            case ZS_CMD_UPDATE:
                 self->ceiling = self->needle + 24 + 8;
+                
+                GET_NUMBER8(self->state);
                 // file meta data count
                 GET_NUMBER8(list_size);
-
                 while (list_size--) {
                     zs_fmetadata_t *fmetadata_item = zs_fmetadata_new ();
                     GET_STRING (fmetadata_item->path);
+                    GET_NUMBER1 (fmetadata_item->operation);
                     GET_NUMBER8 (fmetadata_item->size);
                     GET_NUMBER8 (fmetadata_item->timestamp);
                     // TODO support checksum 
@@ -347,21 +357,21 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
         case ZS_CMD_LAST_STATE:
             PUT_NUMBER8 (self->state);
             break;
-        case ZS_CMD_FILE_LIST:
+        case ZS_CMD_UPDATE:
+            PUT_NUMBER8 (self->state);
             // put trailing size of list
             PUT_NUMBER8 (zlist_size (self->fmetadata));
             // get first element from list
-            zs_fmetadata_t *filemeta_data = zs_msg_fmetadata_first (self);
-            while (filemeta_data) {
-                PUT_STRING (filemeta_data->path);
-                PUT_NUMBER8 (filemeta_data->size);
-                PUT_NUMBER8 (filemeta_data->timestamp);
+            zs_fmetadata_t *fmetadata_item = zs_msg_fmetadata_first (self);
+            while (fmetadata_item) {
+                PUT_STRING (fmetadata_item->path);
+                PUT_NUMBER1 (fmetadata_item->operation);
+                PUT_NUMBER8 (fmetadata_item->size);
+                PUT_NUMBER8 (fmetadata_item->timestamp);
                 // TODO support checksum
                 // cleanup & next list entry
-                zs_fmetadata_destroy (&filemeta_data);
-                filemeta_data = zs_msg_fmetadata_next (self);
+                fmetadata_item = zs_msg_fmetadata_next (self);
             }
-            zlist_destroy (&self->fmetadata);
         case ZS_CMD_NO_UPDATE:
             // No data to put
             break;
@@ -375,7 +385,6 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
                 // next element
                 path = zs_msg_fpaths_next (self);
             }
-            zlist_destroy (&self->fpaths);
             break;
         case ZS_CMD_GIVE_CREDIT:
             PUT_NUMBER8 (self->credit);
@@ -425,17 +434,20 @@ zs_msg_send_last_state (void *output, uint64_t state)
 // Send the FILE_LIST to the RP in one step
 
 int
-zs_msg_send_file_list (void *output, zlist_t *fmetadata) 
+zs_msg_send_update (void *output, uint64_t state, zlist_t *fmetadata) 
 {
-    zs_msg_t *self = zs_msg_new (ZS_CMD_FILE_LIST);   
+    zs_msg_t *self = zs_msg_new (ZS_CMD_UPDATE);   
+    zs_msg_set_state (self, state);
     zs_msg_set_fmetadata (self, fmetadata);
    
     // calculate frame size
-    size_t frame_size = 8; // 8-byte list size
+    size_t frame_size = 8; // 8-byte state
+    frame_size += 8;       // 8-byte list size
     zs_fmetadata_t *filemeta_data = zs_msg_fmetadata_first (self);
     while (filemeta_data) {
         frame_size += sizeof(string_size_t); // string size
         frame_size += strlen(filemeta_data->path); // string length
+        frame_size += 1; // 1-byte file operation
         frame_size += 8; // 8-byte file size
         frame_size += 8; // 8-byte time stamp
         // TODO support checksum
@@ -600,7 +612,7 @@ zs_msg_fmetadata_append (zs_msg_t *self, zs_fmetadata_t *fmetadata_item)
     if (!self->fmetadata) {
         self->fmetadata = zlist_new ();
     }
-    zlist_append (self->fmetadata, zs_fmetadata_dup (fmetadata_item));
+    zlist_append (self->fmetadata, fmetadata_item);
 }
 
 // --------------------------------------------------------------------------
@@ -783,6 +795,24 @@ zs_fmetadata_get_path (zs_fmetadata_t *self)
     return path;
 }    
 
+
+// --------------------------------------------------------------------------
+// Get/Set the file operation
+
+void
+zs_fmetadata_set_operation(zs_fmetadata_t *self, int operation)
+{
+    assert (self);
+    self->operation = operation;
+}
+
+int
+zs_fmetadata_get_operation(zs_fmetadata_t *self)
+{
+    assert (self);
+    return self->operation;
+}
+
 // --------------------------------------------------------------------------
 // Get/Set the file meta data size
 
@@ -848,31 +878,34 @@ zs_msg_test ()
     // cleanup 
     zs_msg_destroy (&self);
 
-    /* [SEND] FILE LIST */
+    /* [SEND] UPDATE */
     zlist_t *filemeta_list = zlist_new ();
     zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
     zs_fmetadata_set_path (fmetadata, "%s", "a.txt");
+    zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_DEL);
     zs_fmetadata_set_size (fmetadata, 0x1533);
     zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
     zlist_append(filemeta_list, fmetadata);
     zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
     zs_fmetadata_set_path (fmetadata2, "%s", "b.txt");
+    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_UPD);
     zs_fmetadata_set_size (fmetadata2, 0x1544);
     zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
     zlist_append(filemeta_list, fmetadata2);
 
-    
-    zs_msg_send_file_list (sender, filemeta_list);
+    zs_msg_send_update (sender, 0xAB, filemeta_list);
     
     /* [RECV] FILE LIST */
     self = zs_msg_recv (sink);
     fmetadata = zs_msg_fmetadata_first (self);
     printf("Command %d\n", zs_msg_get_cmd (self));
+    printf("State %"PRIx64"\n", zs_msg_get_state (self));
     while (fmetadata) {
         char *path = zs_fmetadata_get_path (fmetadata);
+        int operation = zs_fmetadata_get_operation (fmetadata);
         uint64_t size = zs_fmetadata_get_size (fmetadata);
         uint64_t timestamp = zs_fmetadata_get_timestamp (fmetadata);
-        printf("%s %"PRIx64" %"PRIx64"\n", path, size, timestamp);
+        printf("%s %x %"PRIx64" %"PRIx64"\n", path, operation, size, timestamp);
         
         free (path);
         fmetadata = zs_msg_fmetadata_next (self);
