@@ -25,11 +25,13 @@
 @header
     ZeroSync messages module
 
-    When sending messages the ownership of passed arguments are transfered 
-    to the message module.
+    When sending messages the ownership of passed arguments is transfered 
+    to the message module. Any attempt to free a passed argument may result
+    in an severe error.
 
-    When receiving messages the ownership of the of the passed message struct
-    stays with the message module.
+    When receiving messages the zs_msg_t struct must be destroy by it's destroy
+    method zs_msg_destroy. Any attempt to free parts of the zs_msg_t struct may
+    result in an severe error.
 @discuss
 @end
 */
@@ -303,7 +305,6 @@ zs_msg_recv (void *input)
                     GET_NUMBER8 (fmetadata_item->size);
                     GET_NUMBER8 (fmetadata_item->timestamp);
                     GET_NUMBER8 (fmetadata_item->checksum);
-                    // TODO support checksum 
                     zs_msg_fmetadata_append (self, fmetadata_item); 
                 }
                 break;
@@ -471,7 +472,6 @@ zs_msg_send_update (void *output, uint64_t state, zlist_t *fmetadata)
         frame_size += 8; // 8-byte file size
         frame_size += 8; // 8-byte time stamp
         frame_size += 8; // 8-byte checksum
-        // TODO support checksum
         // next list entry
         filemeta_data = zs_msg_fmetadata_next (self);
     }
