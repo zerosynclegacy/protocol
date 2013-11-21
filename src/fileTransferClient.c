@@ -4,13 +4,7 @@
     @@Language C
 */
 
-#include <zmq.h>
-#include <czmq.h>
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "../include/msg.h"
+#include "zsync_classes.h"
 
 //Static credit
 #define credit 250000

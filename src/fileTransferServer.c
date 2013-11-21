@@ -7,12 +7,7 @@
 
 /* testdata is a file generated with the dd app and /dev/urandom. It´s size counts 1GB */
 
-#include <czmq.h>
-#include <zmq.h>
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "../include/msg.h"
+#include "zsync_classes.h"
 
 #define CHUNK_SIZE 30000
 
