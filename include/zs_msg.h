@@ -190,13 +190,20 @@ uint64_t
 // --------------------------------------------------------------------------
 // zs_fmetadata_t get & set
 
-
 // getter/setter file path
 void
     zs_fmetadata_set_path (zs_fmetadata_t *self, char* format, ...);
 
 char *
     zs_fmetadata_get_path (zs_fmetadata_t *self);
+
+// getter/setter renamed file path
+void
+    zs_fmetadata_set_renamed_path (zs_fmetadata_t *self, char* format, ...);
+
+char *
+    zs_fmetadata_get_renamed_path (zs_fmetadata_t *self);
+
 
 // getter/setter file operation
 void

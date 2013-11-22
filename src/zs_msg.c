@@ -55,6 +55,7 @@ struct _zs_msg_t {
 
 struct _zs_fmetadata_t {
     char *path;             // file path + file name
+    char *path_renamed;     // file path + file name of renamed file
     int operation;
     uint64_t size;          // file size in bytes
     uint64_t timestamp;     // UNIX timestamp
@@ -169,6 +170,7 @@ zs_msg_new (int cmd)
 {
     zs_msg_t *self = (zs_msg_t *) zmalloc (sizeof (zs_msg_t));
     self->cmd = cmd;
+    self->file_path = NULL;
     return self;
 }
 
@@ -221,6 +223,8 @@ zs_fmetadata_t *
 zs_fmetadata_new () 
 {
     zs_fmetadata_t *self = (zs_fmetadata_t *) zmalloc (sizeof (zs_fmetadata_t));
+    self->path = NULL;
+    self->path_renamed = NULL;
     return self;
 }
 
@@ -236,6 +240,7 @@ zs_fmetadata_destroy (zs_fmetadata_t **self_p)
         zs_fmetadata_t *self = *self_p;
         
         free (self->path);
+        free (self->path_renamed);
         // Free object itself
         free (self);
         *self_p = NULL;
@@ -253,6 +258,7 @@ zs_fmetadata_dup (zs_fmetadata_t *self)
     zs_fmetadata_t *self_dup = zs_fmetadata_new ();
     
     zs_fmetadata_set_path (self_dup, "%s", self->path);
+    zs_fmetadata_set_renamed_path (self_dup, "%s", self->path_renamed);
     zs_fmetadata_set_operation (self_dup, self->operation);
     zs_fmetadata_set_size (self_dup, self->size);
     zs_fmetadata_set_timestamp (self_dup, self->timestamp);
@@ -302,10 +308,22 @@ zs_msg_recv (void *input)
                     zs_fmetadata_t *fmetadata_item = zs_fmetadata_new ();
                     GET_STRING (fmetadata_item->path);
                     GET_NUMBER1 (fmetadata_item->operation);
-                    GET_NUMBER8 (fmetadata_item->size);
                     GET_NUMBER8 (fmetadata_item->timestamp);
-                    GET_NUMBER8 (fmetadata_item->checksum);
-                    zs_msg_fmetadata_append (self, fmetadata_item); 
+                    switch (fmetadata_item->operation) {
+                        case ZS_FILE_OP_UPD:
+                            GET_NUMBER8 (fmetadata_item->size);
+                            GET_NUMBER8 (fmetadata_item->checksum);
+                            break;
+                        case ZS_FILE_OP_DEL:
+                            // noting to do here
+                            break;
+                        case ZS_FILE_OP_REN:
+                            GET_STRING (fmetadata_item->path_renamed);
+                            break;
+                        default:
+                            goto malformed;
+                    }
+                    zs_msg_fmetadata_append (self, fmetadata_item);
                 }
                 break;
             case ZS_CMD_NO_UPDATE:
@@ -387,9 +405,21 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             while (fmetadata_item) {
                 PUT_STRING (fmetadata_item->path);
                 PUT_NUMBER1 (fmetadata_item->operation);
-                PUT_NUMBER8 (fmetadata_item->size);
                 PUT_NUMBER8 (fmetadata_item->timestamp);
-                PUT_NUMBER8 (fmetadata_item->checksum);
+                switch (fmetadata_item->operation) {
+                    case ZS_FILE_OP_UPD:
+                        PUT_NUMBER8 (fmetadata_item->size);
+                        PUT_NUMBER8 (fmetadata_item->checksum);
+                        break;
+                    case ZS_FILE_OP_DEL:
+                        // noting to do here
+                        break;
+                    case ZS_FILE_OP_REN:
+                        PUT_STRING (fmetadata_item->path_renamed);
+                        break;
+                    default:
+                        goto malformed;
+                }
                 // cleanup & next list entry
                 fmetadata_item = zs_msg_fmetadata_next (self);
             }
@@ -416,7 +446,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             PUT_NUMBER8 (self->offset);
             frame_flags = ZFRAME_MORE;
         default:
-            break;
+            goto malformed;
     }
     
        /* Send data frame */
@@ -437,6 +467,13 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
     zs_msg_destroy (&self);
 
     return 0;
+
+    malformed:
+        printf ("[ERROR] malformed message '%d'\n", self->cmd);            
+    cleanup:
+        zframe_destroy (&data_frame);
+        zs_msg_destroy (&self);
+        return 1;
 }
 
 // --------------------------------------------------------------------------
@@ -468,10 +505,20 @@ zs_msg_send_update (void *output, uint64_t state, zlist_t *fmetadata)
     while (filemeta_data) {
         frame_size += sizeof(string_size_t); // string size
         frame_size += strlen(filemeta_data->path); // string length
-        frame_size += 1; // 1-byte file operation
-        frame_size += 8; // 8-byte file size
-        frame_size += 8; // 8-byte time stamp
-        frame_size += 8; // 8-byte checksum
+        frame_size += 8;   // 8-byte time stamp
+        frame_size += 1;   // 1-byte file operation
+        switch (filemeta_data->operation) {
+            case ZS_FILE_OP_UPD:
+                frame_size += 8; // 8-byte file size
+                frame_size += 8; // 8-byte checksum
+                break;
+            case ZS_FILE_OP_REN:
+                frame_size += sizeof(string_size_t); // string size
+                frame_size += strlen(filemeta_data->path_renamed); // string length
+                break;
+            default:
+                break;
+        }
         // next list entry
         filemeta_data = zs_msg_fmetadata_next (self);
     }
@@ -789,6 +836,7 @@ zs_msg_get_offset (zs_msg_t *self)
     assert(self);
     return self->offset;
 }
+
 // --------------------------------------------------------------------------
 // Get/Set the file meta data path
 
@@ -813,6 +861,33 @@ zs_fmetadata_get_path (zs_fmetadata_t *self)
     // copy string from struct 
     char *path = malloc(strlen(self->path) * sizeof(char));
     strcpy(path, self->path);
+    return path;
+}    
+
+// --------------------------------------------------------------------------
+// Get/Set the renamed file meta data path
+
+void
+zs_fmetadata_set_renamed_path (zs_fmetadata_t *self, char *format, ...) 
+{
+    assert (self);
+    // Format into newly allocated string
+    va_list argptr;
+    va_start (argptr, format);
+    free (self->path_renamed);
+    self->path_renamed = (char *) malloc (STRING_MAX + 1);
+    assert (self->path_renamed);
+    vsnprintf (self->path_renamed, STRING_MAX, format, argptr);
+    va_end (argptr);
+}
+
+char *
+zs_fmetadata_get_renamed_path (zs_fmetadata_t *self)
+{
+    assert (self);
+    // copy string from struct 
+    char *path = malloc(strlen(self->path_renamed) * sizeof(char));
+    strcpy(path, self->path_renamed);
     return path;
 }    
 
@@ -862,7 +937,8 @@ zs_fmetadata_set_timestamp (zs_fmetadata_t *self, uint64_t timestamp)
 }
 
 uint64_t 
-zs_fmetadata_get_timestamp (zs_fmetadata_t *self) {
+zs_fmetadata_get_timestamp (zs_fmetadata_t *self) 
+{
     assert (self);
     return self->timestamp;
 }
@@ -878,7 +954,8 @@ zs_fmetadata_set_checksum (zs_fmetadata_t *self, uint64_t checksum)
 }
 
 uint64_t 
-zs_fmetadata_get_checksum (zs_fmetadata_t *self) {
+zs_fmetadata_get_checksum (zs_fmetadata_t *self) 
+{
     assert (self);
     return self->checksum;
 }
@@ -918,32 +995,35 @@ zs_msg_test ()
     zlist_t *filemeta_list = zlist_new ();
     zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
     zs_fmetadata_set_path (fmetadata, "%s", "a.txt");
-    zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_DEL);
+    zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_UPD);
     zs_fmetadata_set_size (fmetadata, 0x1533);
     zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
     zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
     zlist_append(filemeta_list, fmetadata);
     zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
     zs_fmetadata_set_path (fmetadata2, "%s", "b.txt");
-    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_UPD);
-    zs_fmetadata_set_size (fmetadata2, 0x1544);
+    zs_fmetadata_set_renamed_path (fmetadata2, "%s", "c.txt");
+    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_REN);
     zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
     zlist_append(filemeta_list, fmetadata2);
 
     zs_msg_send_update (sender, 0xAB, filemeta_list);
     
-    /* [RECV] FILE LIST */
+    /* [RECV] UPDATE */
     self = zs_msg_recv (sink);
     fmetadata = zs_msg_fmetadata_first (self);
     printf("Command %d\n", zs_msg_get_cmd (self));
     printf("State %"PRIx64"\n", zs_msg_get_state (self));
     while (fmetadata) {
         char *path = zs_fmetadata_get_path (fmetadata);
+        char *path_ren = NULL;
+        if(fmetadata->path_renamed) 
+            path_ren = zs_fmetadata_get_renamed_path (fmetadata);
         int operation = zs_fmetadata_get_operation (fmetadata);
         uint64_t size = zs_fmetadata_get_size (fmetadata);
         uint64_t timestamp = zs_fmetadata_get_timestamp (fmetadata);
         uint64_t checksum = zs_fmetadata_get_checksum (fmetadata);
-        printf("%s %x %"PRIx64" %"PRIx64" %"PRIx64"\n", path, operation, size, timestamp, checksum);
+        printf("%s %s %x %"PRIx64" %"PRIx64" %"PRIx64"\n", path, path_ren, operation, size, timestamp, checksum);
         
         free (path);
         fmetadata = zs_msg_fmetadata_next (self);
