@@ -33,6 +33,9 @@ AC_CHECK_LIB([zmq], [zmq_init], [],
 AC_CHECK_LIB([czmq], [zctx_new], [],
              [AC_MSG_ERROR(["Cannot link -lczmq, install zeromq czmq"])])
 
+AC_CHECK_LIB([zyre], [zyre_new], [],
+             [AC_MSG_ERROR(["Cannot link -lzyre, install zeromq zyre"])])
+
 # Checks for typedefs, structures, and compiler characteristics.
 
 
