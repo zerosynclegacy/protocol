@@ -34,7 +34,7 @@ before_script:
 - cd ..
 
 #   Zyre
-- git clone git@github.com:zeromq/zyre.git
+- git clone git://github.com:zeromq/zyre.git
 - cd zyre
 - ./autogen.sh
 - ./configure && make check
