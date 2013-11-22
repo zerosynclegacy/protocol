@@ -1,15 +1,11 @@
+# ZeroSync protocol
+
 [![Build Status](https://travis-ci.org/zerosync/protocol.png)](https://travis-ci.org/zerosync/protocol)
 
-# ZeroSync core protocol
+## About protocol
 
-## About libzs
-
-The core library will heavily rely on the awesome messaging framework ØMQ. ØMQ comes with 40+ language bindings. This will allow other components to use a broad variety of programming languages and frameworks to build services around the libzs core. 
-True to the motto "Choose your own weapon!"
-
-## Basic Idea
-
-The core library implements common functionality every component requires. Each component embedding the core will become an ZeroSync Participant. ZeroSync libzs is going to handle the peer to peer communication between participants. It also provides a simple version handling participants can leverage. Further it will pass updates from other participants to store and request to provide data to other participants. Components are different from a storing and providing data point of view. So the implementation for storing and providing data can’t be part of the core itself and needs to be implemented within the components. A desktop client for example stores and provides data by accessing the local file system, a mobile clients may do so as well. On the other hand a server has to store files in some sort of content repository due to the version control it offers and query them when requested to provide. Ans a web app doesn’t store any data but may request the metadata and single files for download. Another part of the core will be a discovery functionality which will work at least for the local LAN.
+The ZeroSync protocol is a reference implementation in C of the protocol defined in the wiki.
+The implementation heavily relies on the awesome messaging framework ØMQ and it's subprojects CZMQ (high level C-API) and Zyre (peer to peer implementation).
 
 ## Interested?
 
