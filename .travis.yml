@@ -34,7 +34,7 @@ before_script:
 - cd ..
 
 #   Zyre
-- git clone git://github.com:zeromq/zyre.git
+- git clone git://github.com/zeromq/zyre.git
 - cd zyre
 - ./autogen.sh
 - ./configure && make check
@@ -43,5 +43,5 @@ before_script:
 - cd ..
 
 #   Build and check libzsync
-script: autoreconf --install && ./configure && make && make check
+script: ./autogen.sh && ./configure && make && make check
 
