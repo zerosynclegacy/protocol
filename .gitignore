@@ -1,3 +1,6 @@
+# Swap files
+*.swp
+
 # Object files
 *.o
 
@@ -24,21 +27,13 @@ Makefile
 Makefile.in
 aclocal.m4
 autom4te.cache/
-config.log
 config.h.in
-config.h
-config.status
 config/
 configure
-depcomp
-missing
-install-sh
-stamp-h1
 doc/Makefile
 doc/Makefile.in
 doc/filemq.1
 doc/*.3
-libtool
 src/.deps/
 src/Makefile
 src/Makefile.in
@@ -53,3 +48,17 @@ fileTransferProto/s
 src/fileClient
 src/fileServer
 src/zerosync
+
+config.h
+config.log
+config.status
+libtool
+stamp-h1
+
+depcomp
+install-sh
+missing
+
+src/zs_msg.lo
+
+doc/msg.txt

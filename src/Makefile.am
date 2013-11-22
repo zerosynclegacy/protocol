@@ -1,10 +1,22 @@
-bin_PROGRAMS = zerosync fileClient fileServer
+lib_LTLIBRARIES = libzsync.la
 
-zerosync_SOURCES = msg.c
-zerosync_LDADD = -lzmq -lczmq -lzre
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA =libzsync.pc
+
+include_HEADERS = \
+    ../include/zs_msg.h
+
+libzsync_la_SOURCES = \
+    zs_msg.c
+
+AM_CPPFLAGS = -I$(top_srcdir)/include    
+
+bin_PROGRAMS = fileClient fileServer zsync_selftest
 
 fileClient_SOURCES = fileTransferClient.c
-fileClient_LDADD = -lzmq -lczmq
+fileClient_LDADD = -lzmq -lczmq libzsync.la
 
 fileServer_SOURCES = fileTransferServer.c
-fileServer_LDADD = -lzmq -lczmq
+fileServer_LDADD = -lzmq -lczmq libzsync.la
+
+zsync_selftest_LDADD = libzsync.la
