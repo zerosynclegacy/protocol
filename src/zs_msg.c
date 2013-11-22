@@ -347,6 +347,9 @@ zs_msg_recv (void *input)
                 
                 self->chunk = zframe_recv (input);
                 break;
+            case ZS_CMD_ABORT:
+                // noting to get
+                break;
             default:
                 goto malformed;
         }
@@ -424,7 +427,7 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
                 fmetadata_item = zs_msg_fmetadata_next (self);
             }
         case ZS_CMD_NO_UPDATE:
-            // No data to put
+            // no data to put
             break;
         case ZS_CMD_REQUEST_FILES:
             // put trailing size of list
@@ -445,6 +448,9 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             PUT_STRING (self->file_path);
             PUT_NUMBER8 (self->offset);
             frame_flags = ZFRAME_MORE;
+        case ZS_CMD_ABORT:
+            // no data to put
+            break;
         default:
             goto malformed;
     }
@@ -598,6 +604,19 @@ zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t of
 
     return zs_msg_send (&msg, output, frame_size);
 }
+
+// -------------------------------------------------------------------------
+// Send ABORT to the RP in one step 
+
+int
+zs_msg_send_abort (void *output) 
+{
+    zs_msg_t *self = zs_msg_new (ZS_CMD_ABORT);
+    size_t frame_size = 0; // there're no data to send
+    
+    return zs_msg_send (&self, output, frame_size);
+}
+
 
 // --------------------------------------------------------------------------
 // Get the message command
@@ -1060,6 +1079,16 @@ zs_msg_test ()
         // next
         path = zs_msg_fpaths_next (self);
     }
+    // cleanup
+    zs_msg_destroy (&self);
+
+    /* [SEND] ABORT */
+    zs_msg_send_abort(sender);
+
+    /* [RECV] NO UPDATE */
+    self = zs_msg_recv (sink);
+    printf("Command %d\n", zs_msg_get_cmd (self));
+    
     // cleanup
     zs_msg_destroy (&self);
 

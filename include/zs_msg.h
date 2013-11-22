@@ -99,6 +99,10 @@ int
 int
     zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk);
 
+// send NO_UPDATE
+int
+    zs_msg_send_abort (void *output);
+ 
 
 // --------------------------------------------------------------------------
 // zs_msg_t get & set
