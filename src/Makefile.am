@@ -4,10 +4,12 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA =libzsync.pc
 
 include_HEADERS = \
-    ../include/zs_msg.h
+    ../include/zs_msg.h \
+    ../include/zs_fmetadata.h \
 
 libzsync_la_SOURCES = \
-    zs_msg.c
+    zs_msg.c \
+    zs_fmetadata.c \
 
 AM_CPPFLAGS = -I$(top_srcdir)/include    
 
