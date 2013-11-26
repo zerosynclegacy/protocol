@@ -19,7 +19,8 @@ int rcv_chunks(void *dealer){
     assert(rcvdFile);
 
     while (true) {
-       zs_msg_t *msg = zs_msg_recv(dealer);
+        zmsg_t *zmsg = zmsg_recv (dealer); 
+       zs_msg_t *msg = zs_msg_unpack (zmsg);
        zframe_t *chunk_frame = zs_msg_get_chunk(msg);
        printf("%d bytes of chunk received.\n", (int)zframe_size(chunk_frame));
 
@@ -49,10 +50,12 @@ int main(int argc, char **argv){
     zctx_t *ctx = zctx_new();
     void *dealer = zsocket_new(ctx, ZMQ_DEALER);
     zsocket_connect(dealer, "tcp://localhost:9989");
-
-    if(zs_msg_send_give_credit(dealer, (uint64_t)credit) != 0){
+    
+    zmsg_t *msg = zmsg_new ();
+    if(zs_msg_pack_give_credit (msg, (uint64_t) credit) != 0) {
         printf("PANIC!\n");
     }
+    zmsg_send (&msg, dealer);
     printf("Start getting chunks.\n");
     size_t chunksGet = rcv_chunks(dealer);
     

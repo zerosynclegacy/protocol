@@ -39,6 +39,7 @@
 #include "zsync_classes.h"
 
 struct _zs_msg_t {
+    zyre_msg_t *zyre_msg;   // zyre message
     uint16_t signature;     // zs_msg signature
     int cmd;                // zs_msg command
     byte *needle;           // read/write pointer for serialization
@@ -209,7 +210,7 @@ zs_msg_destroy (zs_msg_t **self_p)
 // NULL if error. Will block if there's no message waiting.
 
 zs_msg_t *
-zs_msg_recv (void *input) 
+zs_msg_unpack (zmsg_t *input) 
 {
     assert (input);
     zs_msg_t *self = zs_msg_new (0);
@@ -218,7 +219,7 @@ zs_msg_recv (void *input)
     string_size_t string_size;
 
     // Receive data frame
-    frame = zframe_recv (input);
+    frame = zmsg_pop (input);
     if (!frame) {
         goto empty;
     }
@@ -292,7 +293,7 @@ zs_msg_recv (void *input)
                 GET_STRING (self->file_path);
                 GET_NUMBER8 (self->offset);
                 
-                self->chunk = zframe_recv (input);
+                self->chunk = zmsg_pop (input);
                 break;
             case ZS_CMD_ABORT:
                 // noting to get
@@ -321,7 +322,7 @@ zs_msg_recv (void *input)
 // Returns 0 if OK, else -1
 
 int 
-zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
+zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
 {
     assert (output);
     assert (self_p);
@@ -402,18 +403,19 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
             goto malformed;
     }
     
-       /* Send data frame */
-    if (zframe_send (&data_frame, output, frame_flags)) {
-               zframe_destroy (&data_frame);
+    /* Append data frame */
+    if (zmsg_append (output, &data_frame)) {
+           goto cleanup;
     }
 
     /* Send frames */
     if (self->cmd == ZS_CMD_SEND_CHUNK) {
         
-        /* followed by sending the chunk frame */
-        if (zframe_send (&self->chunk, output, 0)) {
-            zframe_destroy (&self->chunk);
+        /* Append the chunk frame */
+        if (zmsg_append (output, &self->chunk)) {
+            goto cleanup;    
         }
+        
     }
 
     /* Cleanup */
@@ -433,19 +435,19 @@ zs_msg_send (zs_msg_t **self_p, void *output, size_t frame_size)
 // Send the LAST_STATE to the RP in one step
 
 int 
-zs_msg_send_last_state (void *output, uint64_t state) 
+zs_msg_pack_last_state (zmsg_t *output, uint64_t state) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_LAST_STATE);
     zs_msg_set_state (self, state);
     size_t frame_size = 8; // 8-byte state
-    return zs_msg_send (&self, output, frame_size);
+    return zs_msg_pack (&self, output, frame_size);
 }
 
 // --------------------------------------------------------------------------
 // Send the FILE_LIST to the RP in one step
 
 int
-zs_msg_send_update (void *output, uint64_t state, zlist_t *fmetadata) 
+zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *fmetadata) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_UPDATE);   
     zs_msg_set_state (self, state);
@@ -476,26 +478,26 @@ zs_msg_send_update (void *output, uint64_t state, zlist_t *fmetadata)
         filemeta_data = zs_msg_fmetadata_next (self);
     }
 
-    return zs_msg_send (&self, output, frame_size); 
+    return zs_msg_pack (&self, output, frame_size); 
 }
 
 // -------------------------------------------------------------------------
 // Send the NO UPDATE to the RP in one step 
 
 int
-zs_msg_send_no_update (void *output) 
+zs_msg_pack_no_update (zmsg_t *output) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_NO_UPDATE);
     size_t frame_size = 0; // there're no data to send
     
-    return zs_msg_send (&self, output, frame_size);
+    return zs_msg_pack (&self, output, frame_size);
 }
 
 // -------------------------------------------------------------------------
 // Send the REQUEST FILES to the RP in one step 
 
 int
-zs_msg_send_request_files (void *output, zlist_t *fpaths)
+zs_msg_pack_request_files (zmsg_t *output, zlist_t *fpaths)
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_REQUEST_FILES);
     
@@ -510,14 +512,14 @@ zs_msg_send_request_files (void *output, zlist_t *fpaths)
         path = zs_msg_fpaths_next (self);
     }
 
-    return zs_msg_send (&self, output, frame_size);
+    return zs_msg_pack (&self, output, frame_size);
 }
 
 // -------------------------------------------------------------------------
 // Send the GIVE_CREDIT to a RP (receiving peer)
 
 int 
-zs_msg_send_give_credit (void *output, uint64_t credit)
+zs_msg_pack_give_credit (zmsg_t *output, uint64_t credit)
 { 
     assert(output);
 
@@ -525,14 +527,14 @@ zs_msg_send_give_credit (void *output, uint64_t credit)
     zs_msg_set_credit (msg, credit); 
 
     size_t frame_size = 8; // 8-byte credit
-    return zs_msg_send (&msg, output, frame_size); 
+    return zs_msg_pack (&msg, output, frame_size); 
 }
 
 // -------------------------------------------------------------------------
 // Send CHUNK to a SP (sending peer)
 
 int
-zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk)
+zs_msg_pack_chunk (zmsg_t *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk)
 {
     assert(output);
     assert(chunk);
@@ -549,19 +551,19 @@ zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t of
     frame_size += 8;    // 8-byte sequence
     frame_size += 8;    // 8-byte offset
 
-    return zs_msg_send (&msg, output, frame_size);
+    return zs_msg_pack (&msg, output, frame_size);
 }
 
 // -------------------------------------------------------------------------
 // Send ABORT to the RP in one step 
 
 int
-zs_msg_send_abort (void *output) 
+zs_msg_pack_abort (zmsg_t *output) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_ABORT);
     size_t frame_size = 0; // there're no data to send
     
-    return zs_msg_send (&self, output, frame_size);
+    return zs_msg_pack (&self, output, frame_size);
 }
 
 
@@ -823,24 +825,29 @@ zs_msg_test ()
     /* 2. create sockets */
     void *sink = zmq_socket (context, ZMQ_DEALER);
     void *sender = zmq_socket (context, ZMQ_DEALER);
+    zmsg_t *msg;
     /* 3. bind/connect sockets */
     int rc = zmq_bind (sink, "inproc://zframe.test");
     assert(rc == 0);
     zmq_connect (sender, "inproc://zframe.test");
     
     /* [SEND] LAST STATE */
-    zs_msg_send_last_state (sender, 0xFF);
+    msg = zmsg_new ();
+    zs_msg_pack_last_state (msg, 0xFF);
+    zmsg_send (&msg, sender);
+    zmsg_destroy (&msg);    // delete zmsg
     
     /* [RECV] LAST STATE */
-    zs_msg_t *self = zs_msg_recv (sink);
+    msg = zmsg_recv (sink);
+    zs_msg_t *self = zs_msg_unpack (msg);
     uint64_t last_state = zs_msg_get_state (self);
     printf("Command %d\n", zs_msg_get_cmd (self));
     printf("last state %"PRIx64"\n", last_state);
-    
-    // cleanup 
-    zs_msg_destroy (&self);
+    zmsg_destroy (&msg);    // destroy zmsg
+    zs_msg_destroy (&self); // destry zs_msg
 
     /* [SEND] UPDATE */
+    msg = zmsg_new ();
     zlist_t *filemeta_list = zlist_new ();
     zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
     zs_fmetadata_set_path (fmetadata, "%s", "a.txt");
@@ -856,10 +863,13 @@ zs_msg_test ()
     zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
     zlist_append(filemeta_list, fmetadata2);
 
-    zs_msg_send_update (sender, 0xAB, filemeta_list);
+    zs_msg_pack_update (msg, 0xAB, filemeta_list);
+    zmsg_send (&msg, sender);
+    zmsg_destroy (&msg);    // delete zmsg
     
     /* [RECV] UPDATE */
-    self = zs_msg_recv (sink);
+    msg = zmsg_recv (sink);
+    self = zs_msg_unpack (msg);
     fmetadata = zs_msg_fmetadata_first (self);
     printf("Command %d\n", zs_msg_get_cmd (self));
     printf("State %"PRIx64"\n", zs_msg_get_state (self));
@@ -877,31 +887,39 @@ zs_msg_test ()
         free (path);
         fmetadata = zs_msg_fmetadata_next (self);
     }
-
-    // cleanup
+    zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self);
    
     /* [SEND] NO UPDATE */
-    zs_msg_send_no_update(sender);
+    msg = zmsg_new ();
+    zs_msg_pack_no_update(msg);
+    zmsg_send (&msg, sender);
+    zmsg_destroy (&msg);    // destroy zmsg
 
     /* [RECV] NO UPDATE */
-    self = zs_msg_recv (sink);
+    msg = zmsg_recv (sink);
+    self = zs_msg_unpack (msg);
     printf("Command %d\n", zs_msg_get_cmd (self));
-    
     // cleanup
+    zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self);
    
 
     /* [SEND] REQUEST FILES */
+    msg = zmsg_new ();
     zlist_t *paths = zlist_new ();
     zlist_append(paths, "test1.txt");
     zlist_append(paths, "test2.txt");
     zlist_append(paths, "test3.txt");
 
-    zs_msg_send_request_files (sender, paths);
+    zs_msg_pack_request_files (msg, paths);
+    zmsg_send (&msg, sender);
+    zmsg_destroy (&msg);    // destroy zmsg
+
 
     /* [RECV] REQUEST FILES */
-    self = zs_msg_recv (sink);
+    msg = zmsg_recv (sink);
+    self = zs_msg_unpack (msg);
     printf("Command %d\n", zs_msg_get_cmd (self));
     char *path = zs_msg_fpaths_first (self);
     while (path) {
@@ -910,16 +928,21 @@ zs_msg_test ()
         path = zs_msg_fpaths_next (self);
     }
     // cleanup
+    zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self);
 
     /* [SEND] ABORT */
-    zs_msg_send_abort(sender);
+    msg = zmsg_new ();
+    zs_msg_pack_abort(msg);
+    zmsg_send (&msg, sender);
+    zmsg_destroy (&msg);    // destroy zmsg
 
     /* [RECV] NO UPDATE */
-    self = zs_msg_recv (sink);
+    msg = zmsg_recv (sink);
+    self = zs_msg_unpack (msg);
     printf("Command %d\n", zs_msg_get_cmd (self));
-    
     // cleanup
+    zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self);
 
     /* 4. close & destroy */
