@@ -1,5 +1,5 @@
 /* =========================================================================
-    zs_msg - work with zerosync messages
+    zs_msg - work with ZeroSync messages
 
    -------------------------------------------------------------------------
    Copyright (c) 2013 Kevin Sapper, Bernhard Finger
@@ -21,8 +21,8 @@
    =========================================================================
 */
 
-#ifndef __MSG_H_INCLUDED__
-#define __MSG_H_INCLUDED__
+#ifndef __ZSYNC_MSG_H_INCLUDED__
+#define __ZSYNC_MSG_H_INCLUDED__
  
 #ifdef __cplusplus
 extern "C" {
@@ -37,21 +37,16 @@ extern "C" {
 #define ZS_CMD_SEND_CHUNK 0x6 
 #define ZS_CMD_ABORT 0x7
 
-#define ZS_FILE_OP_UPD 0x1
-#define ZS_FILE_OP_DEL 0x2
-#define ZS_FILE_OP_REN 0x3
-
 // Opaque class structure
 typedef struct _zs_msg_t zs_msg_t;
-typedef struct _zs_fmetadata_t zs_fmetadata_t;
 
 // Strings might change due to UTF encoding
 typedef uint16_t string_size_t;
 
-// --------------------------------------------------------------------------
-// Create & Destroy
-
 // @interface
+// --------------------------------------------------------------------------
+// Construct & Destroy
+
 // Contructor, creates new zs message
 zs_msg_t *
     zs_msg_new (int cmd);
@@ -59,17 +54,6 @@ zs_msg_t *
 // Destructor, destroys zs message
 void
     zs_msg_destroy (zs_msg_t **self_p);
-
-// Constructor, creates new zs file meta data
-zs_fmetadata_t *
-    zs_fmetadata_new ();
-
-// Destructor, destroys file meta data
-void
-    zs_fmetadata_destroy (zs_fmetadata_t **self_p);
-
-// --------------------------------------------------------------------------
-// Receive & Send
 
 // receive messages
 zs_msg_t *
@@ -190,58 +174,9 @@ void
 uint64_t
     zs_msg_get_offset (zs_msg_t *self);
 
-
-// --------------------------------------------------------------------------
-// zs_fmetadata_t get & set
-
-// getter/setter file path
-void
-    zs_fmetadata_set_path (zs_fmetadata_t *self, char* format, ...);
-
-char *
-    zs_fmetadata_get_path (zs_fmetadata_t *self);
-
-// getter/setter renamed file path
-void
-    zs_fmetadata_set_renamed_path (zs_fmetadata_t *self, char* format, ...);
-
-char *
-    zs_fmetadata_get_renamed_path (zs_fmetadata_t *self);
-
-
-// getter/setter file operation
-void
-    zs_fmetadata_set_operation(zs_fmetadata_t *self, int operation);
-     
-int
-    zs_fmetadata_get_operation(zs_fmetadata_t *self);
-
-// getter/setter file size
-void
-    zs_fmetadata_set_size (zs_fmetadata_t *self, uint64_t size);
-
-uint64_t 
-    zs_fmetadata_get_size (zs_fmetadata_t *self);
-
-// getter/setter timestamp
-void
-    zs_fmetadata_set_timestamp (zs_fmetadata_t *self, uint64_t timestamp);
-
-uint64_t
-    zs_fmetadata_get_timestamp (zs_fmetadata_t *self);
-
-// getter/setter checksum
-void
-    zs_fmetadata_set_checksum (zs_fmetadata_t *self, uint64_t checksum);
-
-uint64_t
-    zs_fmetadata_get_checksum (zs_fmetadata_t *self);
-
-// Self test this class
 int
     zs_msg_test ();
 // @end
-
 
 #ifdef __cplusplus
 }
