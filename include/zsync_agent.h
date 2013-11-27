@@ -21,5 +21,23 @@
    =========================================================================
 */
 
+#ifndef __ZSYNC_AGENT_H_INCLUDED__
+#define __ZSYNC_AGENT_H_INCLUDED__
+ 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Opaque class structure
+typedef struct _zsync_agent_t zsync_agent_t;
+
 int
     zsync_agent_test ();
+
+// @end
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

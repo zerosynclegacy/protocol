@@ -33,6 +33,22 @@
 
 #include "zsync_classes.h"
 
+struct _zsync_agent_t {
+    
+};
+
+zsync_agent_t *
+zsync_agent_new () 
+{
+    zsync_agent_t *self = (zsync_agent_t *) zmalloc (sizeof (zsync_agent_t));
+    return self;
+}
+
+void 
+zsync_agent_start () {
+    
+}
+
 int
 zsync_agent_test (char *id)
 {

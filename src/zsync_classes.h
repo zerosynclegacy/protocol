@@ -5,7 +5,7 @@
 
 #include <czmq.h>
 #include <zyre.h>
-#include <zyre_msg.h>
+#include <zyre_event.h>
 #include "../include/zs_fmetadata.h"
 #include "../include/zs_msg.h"
 #include "../include/zsync_node.h"

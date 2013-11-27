@@ -39,7 +39,6 @@
 #include "zsync_classes.h"
 
 struct _zs_msg_t {
-    zyre_msg_t *zyre_msg;   // zyre message
     uint16_t signature;     // zs_msg signature
     int cmd;                // zs_msg command
     byte *needle;           // read/write pointer for serialization
