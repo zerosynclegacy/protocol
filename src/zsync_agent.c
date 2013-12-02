@@ -33,8 +33,6 @@
 
 #include "zsync_classes.h"
 
-/* TODO: header ausimplementieren / setter fertig machen
-*/
 struct _zsync_agent_t {
     // state
     // first param -> last state, that the partner has from us
@@ -92,6 +90,69 @@ zsync_agent_set_pass_lstate (zsync_agent_t *self, void *ptr)
     self->pass_last_state = ptr;
 }
 
+// --------------------------------------------------------------------------
+// Set pass chunk
+
+void
+zsync_agent_set_pass_chunk (zsync_agent_t *self, void *ptr)
+{
+    assert(self);
+    self->pass_chunk = ptr;
+}
+
+// --------------------------------------------------------------------------
+// Set get chunk
+
+void 
+zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr)
+{
+    assert(self);
+    self->get_chunk = ptr;
+}
+
+// --------------------------------------------------------------------------
+// Set get last state
+
+void
+zsync_agent_set_get_lsate (zsync_agent_t *self, void *ptr)
+{
+    assert(self);
+    self->get_last_state = ptr;
+}
+
+// --------------------------------------------------------------------------
+// send_request_files for the protocol
+
+void 
+zsync_agent_send_request_files (void* out, zlist_t *list)
+{
+    // give the Request_files_command to the protocol
+    if (zs_msg_send_request_files (out, list) == 0) printf ("Requested files sent.\n;");
+
+}
+
+// --------------------------------------------------------------------------
+// send_update for the protocol
+void
+zsync_agent_send_update (void *out, uint64_t state, zlist_t *list)
+{
+    // give the send_update_command to the protocol
+    if (zs_msg_send_update (out, state, list) == 0) printf ("Update sent.\n");
+}
+
+// --------------------------------------------------------------------------
+// send_abort for the protocol
+void
+zsync_agent_send_abort(void *out, char* fileToAbort)
+{
+    // TODO: Implement the filePath to send_abort in protocol
+    // give the send_abort_command to the protocol
+    if (zs_msg_send_abort (out) == 0) printf("Caution, file transfer aborted!!!\n");
+}
+
+// --------------------------------------------------------------------------
+// Pseudo test function
+
 void 
 test_pass_last_state(uint64_t lstate, zlist_t *list, uint64_t *cstate)
 {
@@ -102,7 +163,7 @@ int
 zsync_agent_test (char *id)
 {
     printf("selftest zsync_agent* \n");
-    printf("testing pass_last_state\n...");
+    printf("testing pass_last_state...\n");
     
     zsync_agent_t *agent = zsync_agent_new();
     

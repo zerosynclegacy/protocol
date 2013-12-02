@@ -27,9 +27,9 @@
 
 typedef struct _zsync_agent_t zsync_agent_t;
 
-void send_request_files(zlist_t *list);
-void send_update(uint64_t state, zlist_t *list);
-void send_abort(char *fileToAbort);
+void zsync_agent_send_request_files(void *currentConnection, zlist_t *list);
+void zsync_agent_send_update(void *currentConnection, uint64_t state, zlist_t *list);
+void zsync_agent_send_abort(void *currentConnection, char *fileToAbort);
 int zsync_agent_test ();
 
 #endif
