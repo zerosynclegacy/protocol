@@ -21,5 +21,15 @@
    =========================================================================
 */
 
-int
-    zsync_agent_test ();
+#ifndef __ZSYNC_AGENT_H_INCLUDED__
+#define __ZSYNC_AGENT_H_INCLUDED__
+
+
+typedef struct _zsync_agent_t zsync_agent_t;
+
+void send_request_files(zlist_t *list);
+void send_update(uint64_t state, zlist_t *list);
+void send_abort(char *fileToAbort);
+int zsync_agent_test ();
+
+#endif
