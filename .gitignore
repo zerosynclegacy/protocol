@@ -21,6 +21,9 @@
 
 *a.out
 
+# Zsync
+*.zsync_uuid
+
 # autoreconf
 INSTALL
 Makefile

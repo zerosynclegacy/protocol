@@ -7,4 +7,3 @@ msg_selftest
 libzsync.la
 libzsync.pc
 zsync_selftest
-/*.zsync_uuid
