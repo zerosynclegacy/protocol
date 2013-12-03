@@ -22,7 +22,8 @@
 *a.out
 
 # Zsync
-*.zsync_uuid
+.zsync_uuid
+.zsync_uuids
 
 # autoreconf
 INSTALL
