@@ -54,48 +54,6 @@ zsync_agent_test (char *id)
 {
     printf("selftest zsync_agent* \n");
 
-    // create contex & node
-    zctx_t *ctx = zctx_new ();
-    zyre_t *node = zyre_new (ctx);
-   
-    // set header, start node and join group
-    zyre_set_header (node, "PROTOCOL", "%s", "1.0");
-    zyre_set_header (node, "PEER_NAME", "%s", id);
-    zyre_start (node);
-    zyre_join (node, "zerosync");
-
-    zmsg_t *msg = NULL;
-    char *peer_name = NULL;
-    char *peer = NULL;
-    while (true) {
-        msg = zyre_recv (node);
-        char *cmd = zmsg_popstr (msg);
-        peer = zmsg_popstr (msg);
-        printf("Command: %s\n", cmd);
-        printf("Peer: %s\n", peer);
-        if (streq (cmd, "ENTER")) {
-            zframe_t *headers_packed = zmsg_pop (msg);
-            zhash_t *headers = zhash_unpack (headers_packed);
-            printf("Protocol verison: %s\n", (char *) zhash_lookup (headers, "PROTOCOL"));
-            peer_name = (char *) zhash_lookup (headers, "PEER_NAME");
-            printf("Peer Name: %s\n", peer_name);
-            zhash_destroy (&headers);
-        }
-        if (streq (cmd, "WHISPER")) {
-            printf("Whisper: %s\n", zmsg_popstr (msg));
-        }
-        zmsg_destroy (&msg);
-        if (streq (cmd, "JOIN")) {
-            printf("joooooooiin\n");
-            msg = zmsg_new ();
-            zmsg_addstr (msg, peer);
-            zmsg_addstr (msg, "%s", "Hello friend!");
-            zyre_whisper (node, &msg);
-            zmsg_destroy (&msg);
-        }
-        printf("-----------------------------------\n");
-    }
-
     printf("OK\n");
     return 0;
 }

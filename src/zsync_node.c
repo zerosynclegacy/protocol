@@ -27,6 +27,8 @@
 
     A node is one instance on the ZeroSync network
 @discuss
+    LOGGER into zyre_event.
+    LOG message to LOG group on whisper and shout
 @end
 */
 
@@ -38,7 +40,7 @@
 
 struct _zsync_node_t {
     zctx_t *ctx;
-    zyre_t *zyre;               // zyre main struct
+    zyre_t *zyre;               // zyre
     zuuid_t *own_uuid;          // uuid of this node
     // TODO move into own peer class
     zhash_t *peer_uuids;        // mapping of our peers temporary and permanent uuid
@@ -110,14 +112,14 @@ int peer_last_state (zsync_node_t *self, zyre_event_t *event)
 {
     assert (self);
     // Get permanent peer uuid
-    char *perm_peerid = zhash_lookup (self->peer_uuids, zyre_event_peerid (event));
+    char *perm_peerid = zhash_lookup (self->peer_uuids, zyre_event_sender (event));
     char *last_state_str = zhash_lookup (self->peer_ustates, perm_peerid);
     if (last_state_str) {
         int last_state;
         sscanf (last_state_str, "%d", &last_state);
         return last_state;
     } else {
-        return 5;
+        return 0;
     }
 }
 
@@ -143,24 +145,30 @@ zsync_node_engine ()
     while (count--) {
         zyre_event_t *event = zyre_event_recv (self->zyre);
         // TODO introdues state flow engine
-        switch (zyre_event_cmd (event)) {
+        switch (zyre_event_type (event)) {
             case ZYRE_EVENT_ENTER:
+                if (!zyre_event_header (event, "X-ZRELOG")) {
                 // get uuid of sending peer
-                s_peer_id = zyre_event_get_header (event, "UUID");
-                printf("ENTER: %s\n", s_peer_id);
-                zhash_update (self->peer_uuids, zyre_event_peerid (event), s_peer_id);
+                s_peer_id = zyre_event_header (event, "UUID");
+                printf("ZS_ENTER: %s\n", s_peer_id);
+                zhash_update (self->peer_uuids, zyre_event_sender (event), s_peer_id);
+                } else {
+                    count++;
+                }
                 break;        
             case ZYRE_EVENT_JOIN:
-                printf ("JOIN\n");
+                printf ("ZS_JOIN\n");
                 int last_state = peer_last_state (self, event); 
+                // pack msg
                 zmsg_t *msg = zmsg_new ();
-                zmsg_addstr (msg, zyre_event_peerid (event));
                 zs_msg_pack_last_state (msg, last_state);
-                zyre_whisper (self->zyre, &msg);
+                // send event
+                zyre_whisper (self->zyre, zyre_event_sender (event), &msg);
                 break;
             case ZYRE_EVENT_WHISPER:
-                printf ("WHISPER\n");
-                zs_msg_t *zs_msg = zs_msg_unpack (zyre_event_data (event));
+                printf ("ZS_WHISPER\n");
+                zmsg_t *in_msg = zyre_event_msg (event);
+                zs_msg_t *zs_msg = zs_msg_unpack (in_msg);
                 printf ("LAST_STATE: %"PRId64"\n", zs_msg_get_state (zs_msg));
                 zs_msg_destroy (&zs_msg);
                 break;
