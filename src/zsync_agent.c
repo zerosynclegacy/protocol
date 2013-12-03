@@ -34,6 +34,9 @@
 #include "zsync_classes.h"
 
 struct _zsync_agent_t {
+    // zyre connection
+    zyre_t *zyre;
+    
     // state
     // first param -> last state, that the partner has from us
     // second param -> filemetalist while initializing (if NULL -> NO-UPDATE
@@ -64,6 +67,10 @@ zsync_agent_t *
 zsync_agent_new ()
 {
     zsync_agent_t *self = (zsync_agent_t*) zmalloc (sizeof (zsync_agent_t));
+    
+    zctx_t *ctx = zctx_new();
+    self->zyre = zyre_new(ctx);
+
     return self;
 }
 
@@ -76,8 +83,29 @@ zsync_agent_destroy (zsync_agent_t **self_p)
     assert (self_p);
     if (*self_p) {
         zsync_agent_t *self = *self_p;
+        
+        //TODO: call zyre_stop
         free(self);
     }
+}
+
+// --------------------------------------------------------------------------
+// zsync_agent start, failed if a function ptr isn´t set
+
+int
+zsync_agent_start (zsync_agent_t *self)
+{
+    assert(self);
+    if (self->pass_last_state && 
+        self->pass_chunk && 
+        self->get_chunk && 
+        self->get_last_state) {
+      
+        zyre_start(self->zyre); 
+        return 0;
+    }
+    
+    return 1;
 }
 
 // --------------------------------------------------------------------------
@@ -124,30 +152,42 @@ zsync_agent_set_get_lsate (zsync_agent_t *self, void *ptr)
 // send_request_files for the protocol
 
 void 
-zsync_agent_send_request_files (void* out, zlist_t *list)
+zsync_agent_send_request_files (zsync_agent_t *self, zlist_t *list)
 {
+    zmsg_t *msg = zmsg_new();
     // give the Request_files_command to the protocol
-    if (zs_msg_pack_request_files (out, list) == 0) printf ("Requested files sent.\n;");
-
+    if (zs_msg_pack_request_files (msg, list)) {
+        zyre_whisper (self->zyre, "", &msg);
+        printf ("Requested files sent.\n;");
+    }
 }
 
 // --------------------------------------------------------------------------
 // send_update for the protocol
 void
-zsync_agent_send_update (void *out, uint64_t state, zlist_t *list)
+zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 {
+    zmsg_t *msg = zmsg_new();
     // give the send_update_command to the protocol
-    if (zs_msg_pack_update (out, state, list) == 0) printf ("Update sent.\n");
+    if (zs_msg_pack_update (msg, state, list)) {
+        zyre_shout (self->zyre, "", &msg);
+        printf ("Update sent.\n");    
+    }
 }
 
 // --------------------------------------------------------------------------
 // send_abort for the protocol
+
 void
-zsync_agent_send_abort(void *out, char* fileToAbort)
+zsync_agent_send_abort(zsync_agent_t *self, char* fileToAbort)
 {
+    zmsg_t *msg = zmsg_new();
     // TODO: Implement the filePath to send_abort in protocol
     // give the send_abort_command to the protocol
-    if (zs_msg_pack_abort (out) == 0) printf("Caution, file transfer aborted!!!\n");
+    if (zs_msg_pack_abort (msg)) { 
+        zyre_whisper(self->zyre, "", &msg);
+        printf("Caution, file transfer aborted!!!\n");
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -174,3 +214,4 @@ zsync_agent_test (char *id)
     printf("OK\n");
     return 0;
 }
+

@@ -31,17 +31,30 @@ extern "C" {
 // Opaque class structure
 typedef struct _zsync_agent_t zsync_agent_t;
 
-void 
-    zsync_agent_send_request_files(void *currentConnection, zlist_t *list);
-
-void 
-    zsync_agent_send_update(void *currentConnection, uint64_t state, zlist_t *list);
-
-void 
-    zsync_agent_send_abort(void *currentConnection, char *fileToAbort);
-
 int 
-    zsync_agent_test ();
+    zsync_agent_start (zsync_agent_t *self);
+
+void 
+    zsync_agent_send_request_files (zsync_agent_t *agent, zlist_t *list);
+
+void 
+    zsync_agent_send_update (zsync_agent_t *agent, uint64_t state, zlist_t *list);
+
+void 
+    zsync_agent_send_abort (zsync_agent_t *agent, char *fileToAbort);
+
+void 
+    zsync_agent_set_pass_lstate (zsync_agent_t *self, void *ptr);
+
+void 
+    zsync_agent_set_pass_chunk (zsync_agent_t *self, void *ptr);
+
+void 
+    zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr);
+
+void 
+    zsync_agent_set_get_lstate (zsync_agent_t *self, void *ptr);
+
 
 #ifdef __cplusplus
 }
