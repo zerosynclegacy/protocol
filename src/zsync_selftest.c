@@ -29,5 +29,6 @@ main (int argc, char *argv [])
     printf("Running self tests...\n");
     zs_msg_test();
     zsync_node_test ();
+    zsync_agent_test();
     printf("Tests passed OK\n");
 }
