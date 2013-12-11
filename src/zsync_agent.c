@@ -28,6 +28,8 @@
     The agent is responible for controlling the protocols state and workflow.
     It's splitted into message handling and information retrival.
 @discuss
+    * Add method to ask for current file transfer lsit
+    * Add method to give update (from, to)
 @end
 */
 

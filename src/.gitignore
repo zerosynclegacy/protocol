@@ -9,3 +9,5 @@ libzsync.pc
 zsync_selftest
 .zsync_uuid
 .zsync_uuids
+/*.zsync_peer_states
+/*.lo
