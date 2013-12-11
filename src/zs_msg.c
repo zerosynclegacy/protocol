@@ -43,6 +43,7 @@ struct _zs_msg_t {
     int cmd;                // zs_msg command
     byte *needle;           // read/write pointer for serialization
     byte *ceiling;          // valid upper limit for needle
+    byte *uuid;             // own 16-byte uuid
     uint64_t state;
     uint64_t sequence;
     uint64_t offset;
@@ -158,6 +159,7 @@ zs_msg_new (int cmd)
 {
     zs_msg_t *self = (zs_msg_t *) zmalloc (sizeof (zs_msg_t));
     self->cmd = cmd;
+    self->uuid = (byte *) zmalloc (sizeof (byte) * 16);
     self->file_path = NULL;
     return self;
 }
@@ -234,8 +236,12 @@ zs_msg_unpack (zmsg_t *input)
         // Get the message command and parse accordingly
         GET_NUMBER1(self->cmd);
         switch (self->cmd) {
-            case ZS_CMD_LAST_STATE:
+            case ZS_CMD_GREET:
+                GET_BLOCK (self->uuid, 16);
                 GET_NUMBER8(self->state);
+                break;
+            case ZS_CMD_LAST_STATE:
+                GET_NUMBER8 (self->state);
                 break;
             case ZS_CMD_UPDATE:
                 GET_NUMBER8(self->state);
@@ -272,9 +278,6 @@ zs_msg_unpack (zmsg_t *input)
                     }
                     zs_msg_fmetadata_append (self, fmetadata_item);
                 }
-                break;
-            case ZS_CMD_NO_UPDATE:
-                // nothing to get
                 break;
             case ZS_CMD_REQUEST_FILES:
                 GET_NUMBER8(list_size);
@@ -326,7 +329,7 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
     assert (output);
     assert (self_p);
     assert (*self_p);
-
+   
     zs_msg_t *self = *self_p; 
     string_size_t string_size;
     int frame_flags = 0;
@@ -343,6 +346,10 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
     PUT_NUMBER1 (self->cmd);
 
     switch(self->cmd) {
+        case ZS_CMD_GREET:
+            PUT_BLOCK (self->uuid, 16);
+            PUT_NUMBER8 (self->state);
+            break;
         case ZS_CMD_LAST_STATE:
             PUT_NUMBER8 (self->state);
             break;
@@ -373,8 +380,6 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
                 // cleanup & next list entry
                 fmetadata_item = zs_msg_fmetadata_next (self);
             }
-        case ZS_CMD_NO_UPDATE:
-            // no data to put
             break;
         case ZS_CMD_REQUEST_FILES:
             // put trailing size of list
@@ -431,14 +436,28 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
 }
 
 // --------------------------------------------------------------------------
-// Send the LAST_STATE to the RP in one step
+// Send the GREET to the RP in one step
 
 int 
-zs_msg_pack_last_state (zmsg_t *output, uint64_t state) 
+zs_msg_pack_greet (zmsg_t *output, byte *uuid, uint64_t state) 
+{
+    zs_msg_t *self = zs_msg_new (ZS_CMD_GREET);
+    zs_msg_set_uuid (self, uuid);
+    zs_msg_set_state (self, state);
+    size_t frame_size = 16; // 16-byte uuid
+    frame_size += 8;        // 8-byte state
+    return zs_msg_pack (&self, output, frame_size);
+}
+
+// --------------------------------------------------------------------------
+// Send the GREET to the RP in one step
+
+int 
+zs_msg_pack_last_state (zmsg_t *output, uint64_t last_state) 
 {
     zs_msg_t *self = zs_msg_new (ZS_CMD_LAST_STATE);
-    zs_msg_set_state (self, state);
-    size_t frame_size = 8; // 8-byte state
+    zs_msg_set_state (self, last_state);
+    size_t frame_size = 8;  // 8-byte state
     return zs_msg_pack (&self, output, frame_size);
 }
 
@@ -478,18 +497,6 @@ zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *fmetadata)
     }
 
     return zs_msg_pack (&self, output, frame_size); 
-}
-
-// -------------------------------------------------------------------------
-// Send the NO UPDATE to the RP in one step 
-
-int
-zs_msg_pack_no_update (zmsg_t *output) 
-{
-    zs_msg_t *self = zs_msg_new (ZS_CMD_NO_UPDATE);
-    size_t frame_size = 0; // there're no data to send
-    
-    return zs_msg_pack (&self, output, frame_size);
 }
 
 // -------------------------------------------------------------------------
@@ -576,6 +583,24 @@ zs_msg_get_cmd (zs_msg_t *self)
     return self->cmd;    
 }
 
+
+// --------------------------------------------------------------------------
+// Get/Set the uuid field
+
+void 
+zs_msg_set_uuid (zs_msg_t *self, byte *uuid) 
+{
+    assert (self);
+    free (self->uuid);
+    self->uuid = uuid;
+}
+
+byte * 
+zs_msg_uuid (zs_msg_t *self) 
+{
+    assert (self);
+    return self->uuid;
+}
 
 // --------------------------------------------------------------------------
 // Get/Set the state field
@@ -830,21 +855,40 @@ zs_msg_test ()
     assert(rc == 0);
     zmq_connect (sender, "inproc://zframe.test");
     
-    /* [SEND] LAST STATE */
+    /* [SEND] GREET */
     msg = zmsg_new ();
-    zs_msg_pack_last_state (msg, 0xFF);
+    zuuid_t *s_uuid = zuuid_new ();
+    zs_msg_pack_greet (msg, zuuid_data (s_uuid), 0xFF);
     zmsg_send (&msg, sender);
     zmsg_destroy (&msg);    // delete zmsg
     
-    /* [RECV] LAST STATE */
+    /* [RECV] GREET */
     msg = zmsg_recv (sink);
     zs_msg_t *self = zs_msg_unpack (msg);
-    uint64_t last_state = zs_msg_get_state (self);
+    uint64_t state = zs_msg_get_state (self);
+    zuuid_t *r_uuid = zuuid_new ();
+    zuuid_set (r_uuid, zs_msg_uuid (self));
+    assert ( zuuid_eq (s_uuid, zuuid_data (r_uuid)));
     printf("Command %d\n", zs_msg_get_cmd (self));
-    printf("last state %"PRIx64"\n", last_state);
+    printf ("uuid %s\n", zuuid_str (r_uuid));
+    printf("state %"PRIx64"\n", state);
     zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self); // destry zs_msg
 
+    /* [SEND LAST_STATE */
+    msg = zmsg_new ();
+    zs_msg_pack_last_state (msg, 0x55);
+    zmsg_send (&msg, sender);
+    zmsg_destroy (&msg);
+
+    /* [RECV] LAST_STATE */
+    msg = zmsg_recv (sink);
+    self = zs_msg_unpack (msg);
+    uint64_t last_state = zs_msg_get_state (self);
+    printf("last state %"PRIx64"\n", last_state);
+    zmsg_destroy (&msg);    // destroy zmsg
+    zs_msg_destroy (&self); // destry zs_msg
+    
     /* [SEND] UPDATE */
     msg = zmsg_new ();
     zlist_t *filemeta_list = zlist_new ();
@@ -889,21 +933,6 @@ zs_msg_test ()
     zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self);
    
-    /* [SEND] NO UPDATE */
-    msg = zmsg_new ();
-    zs_msg_pack_no_update(msg);
-    zmsg_send (&msg, sender);
-    zmsg_destroy (&msg);    // destroy zmsg
-
-    /* [RECV] NO UPDATE */
-    msg = zmsg_recv (sink);
-    self = zs_msg_unpack (msg);
-    printf("Command %d\n", zs_msg_get_cmd (self));
-    // cleanup
-    zmsg_destroy (&msg);    // destroy zmsg
-    zs_msg_destroy (&self);
-   
-
     /* [SEND] REQUEST FILES */
     msg = zmsg_new ();
     zlist_t *paths = zlist_new ();
