@@ -276,7 +276,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
 }
 
 void
-zsync_node_engine ()
+zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
 {
     zsync_node_t *self = zsync_node_new ();
 
@@ -295,6 +295,7 @@ zsync_node_engine ()
     // Start receiving messages
     int count = 5;
     // while (!zpoller_terminated (poller)) {
+    // TODO use pipe to agent to shutdown properly
     while (count--) {
         // TODO pool from zyre and file_transfer_management
         void *which = zpoller_wait (poller, -1);
@@ -303,13 +304,14 @@ zsync_node_engine ()
         }
     }
     zsync_node_destroy (&self);
+    zpoller_destroy (&poller);
 }
 
 int
 zsync_node_test () 
 {
     printf ("zsync_node: \n");
-    zsync_node_engine ();
+    zsync_node_engine (NULL, NULL, NULL);
     printf("OK\n");
 }
 
