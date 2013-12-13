@@ -2,6 +2,7 @@
 core
 .libs/
 test/
+/test/
 msg.lo
 msg_selftest
 libzsync.la
