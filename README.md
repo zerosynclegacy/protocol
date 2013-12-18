@@ -4,7 +4,7 @@
 
 ## About protocol
 
-The ZeroSync protocol is a reference implementation in C of the protocol defined in the wiki.
+The ZeroSync protocol is a reference implementation in C of the ZeroSync protocol, defined in the wiki.
 The implementation heavily relies on the awesome messaging framework ØMQ and it's subprojects CZMQ (high level C-API) and Zyre (peer to peer implementation).
 
 ## Interested?
