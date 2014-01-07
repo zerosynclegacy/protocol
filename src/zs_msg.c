@@ -294,7 +294,6 @@ zs_msg_unpack (zmsg_t *input)
                 GET_NUMBER8 (self->sequence);
                 GET_STRING (self->file_path);
                 GET_NUMBER8 (self->offset);
-                
                 self->chunk = zmsg_pop (input);
                 break;
             case ZS_CMD_ABORT:
@@ -949,6 +948,7 @@ zs_msg_test ()
     msg = zmsg_recv (sink);
     self = zs_msg_unpack (msg);
     printf("Command %d\n", zs_msg_get_cmd (self));
+    zs_msg_fpaths (self);
     char *path = zs_msg_fpaths_first (self);
     while (path) {
         printf("%s\n", path);

@@ -36,29 +36,28 @@
 #include "zsync_classes.h"
 
 struct _zsync_agent_t {
-    // zyre connection
+    // Zeromq context
+    zctx_t *ctx;
+
+    // Zyre connection
     zyre_t *zyre;
+
+    bool running;
+
+    // Passes a list with updated files
+    void (*pass_update)(char *sender, zlist_t *file_metadata);
+
+    // Passes a chunk of bytes to the CLIENT 
+    void (*pass_chunk)(byte *chunk, char *path, uint64_t sequence, uint64_t offset);
+
+    // Returns a list of updates starting by the from state to the current state
+    zlist_t* (*get_update)(uint64_t from_state);
     
-    // state
-    // first param -> last state, that the partner has from us
-    // second param -> filemetalist while initializing (if NULL -> NO-UPDATE
-    // third param -> our current state 
-    void (*pass_last_state)(uint64_t, zlist_t * ,uint64_t *);
+    // Returns a chunk from a file.
+    byte* (*get_chunk)(char* path, uint64_t chunk_size, uint64_t offset);
 
-    // chunk
-    // first param -> chunk in bytes
-    // second param -> sequence number
-    // third param -> file path
-    // fourth param -> offset
-    void (*pass_chunk)(byte *, uint64_t, char *, uint64_t);
-
-    // get_chunk
-    // first param -> file path
-    // second param -> offset
-    byte* (*get_chunk)(char *, uint64_t);
-
-    // get_last_state
-    uint64_t (*get_last_state);
+    // Returns the current state of this peer
+    uint64_t (*get_current_state)();
 };
 
 
@@ -70,8 +69,11 @@ zsync_agent_new ()
 {
     zsync_agent_t *self = (zsync_agent_t*) zmalloc (sizeof (zsync_agent_t));
     
-    zctx_t *ctx = zctx_new();
-    self->zyre = zyre_new(ctx);
+    self->ctx = zctx_new();
+    assert (self->ctx);
+    self->zyre = zyre_new(self->ctx);
+    assert (self->zyre);
+    self->running = false;
 
     return self;
 }
@@ -86,7 +88,10 @@ zsync_agent_destroy (zsync_agent_t **self_p)
     if (*self_p) {
         zsync_agent_t *self = *self_p;
         
-        //TODO: call zyre_stop
+        // stop and destroy zyre
+        zyre_stop (self->zyre);
+        zyre_destroy (&self->zyre);
+
         free(self);
     }
 }
@@ -97,43 +102,78 @@ zsync_agent_destroy (zsync_agent_t **self_p)
 int
 zsync_agent_start (zsync_agent_t *self)
 {
-    assert(self);
-    if (self->pass_last_state && 
+    assert (self);
+    if (self->pass_update &&
         self->pass_chunk && 
-        self->get_chunk && 
-        self->get_last_state) {
+        self->get_update && 
+        self->get_current_state && 
+        self->get_chunk) {
       
-        zyre_start(self->zyre); 
+        zyre_start (self->zyre);
+        int rc = zthread_new (zsync_node_engine, self);
+        assert (rc == 0);
+        self->running = true;
         return 0;
     }
-    
     return 1;
 }
 
-// --------------------------------------------------------------------------
-// Set pass last state
 
-void 
-zsync_agent_set_pass_lstate (zsync_agent_t *self, void *ptr)
+// --------------------------------------------------------------------------
+// zsync_agent stop, failed if a function ptr isn´t set
+
+void
+zsync_agent_stop (zsync_agent_t *self)
 {
-    assert(self);
-    self->pass_last_state = ptr;
+    assert (self);
+    self->running = false;
 }
 
 // --------------------------------------------------------------------------
-// Set pass chunk
+// Sets the pass_update callback method
 
-void
+void 
+zsync_agent_set_pass_update (zsync_agent_t *self, void *ptr)
+{
+    assert(self);
+    self->pass_update = ptr;
+}
+
+// --------------------------------------------------------------------------
+// Sets the pass_chunk callback method
+
+void 
 zsync_agent_set_pass_chunk (zsync_agent_t *self, void *ptr)
 {
     assert(self);
     self->pass_chunk = ptr;
 }
 
+
 // --------------------------------------------------------------------------
-// Set get chunk
+// Sets the get_update callback method
+
+void
+zsync_agent_set_get_update (zsync_agent_t *self, void *ptr)
+{
+    assert(self);
+    self->get_update = ptr;
+}
+
+// --------------------------------------------------------------------------
+// Sets the get_current_state callback method
 
 void 
+zsync_agent_set_get_current_state (zsync_agent_t *self, void *ptr)
+{
+    assert(self);
+    self->get_current_state = ptr;
+}
+
+// --------------------------------------------------------------------------
+// Sets the get_chunk callback method
+
+void
 zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr)
 {
     assert(self);
@@ -141,31 +181,22 @@ zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr)
 }
 
 // --------------------------------------------------------------------------
-// Set get last state
-
-void
-zsync_agent_set_get_lsate (zsync_agent_t *self, void *ptr)
-{
-    assert(self);
-    self->get_last_state = ptr;
-}
-
-// --------------------------------------------------------------------------
 // send_request_files for the protocol
 
 void 
-zsync_agent_send_request_files (zsync_agent_t *self, zlist_t *list)
+zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list)
 {
     zmsg_t *msg = zmsg_new();
     // give the Request_files_command to the protocol
     if (zs_msg_pack_request_files (msg, list)) {
-        zyre_whisper (self->zyre, "", &msg);
+        zyre_whisper (self->zyre, sender, &msg);
         printf ("Requested files sent.\n;");
     }
 }
 
 // --------------------------------------------------------------------------
 // send_update for the protocol
+
 void
 zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 {
@@ -178,10 +209,10 @@ zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 }
 
 // --------------------------------------------------------------------------
-// send_abort for the protocol
+// Sends ABORT message to the protocol
 
 void
-zsync_agent_send_abort(zsync_agent_t *self, char* fileToAbort)
+zsync_agent_send_abort (zsync_agent_t *self, char* fileToAbort)
 {
     zmsg_t *msg = zmsg_new();
     // TODO: Implement the filePath to send_abort in protocol
@@ -193,27 +224,108 @@ zsync_agent_send_abort(zsync_agent_t *self, char* fileToAbort)
 }
 
 // --------------------------------------------------------------------------
+// Gets the zeromq context
+
+zctx_t *
+zsync_agent_ctx (zsync_agent_t *self)
+{
+    assert (self);
+    assert (self->ctx);
+    return self->ctx;
+}
+
+// --------------------------------------------------------------------------
+// Gets the Zyre object
+
+zyre_t *
+zsync_agent_zyre (zsync_agent_t *self)
+{
+    assert (self);
+    assert (self->zyre);
+    return self->zyre;
+}
+
+// --------------------------------------------------------------------------
+// Returns whether the agents has been started or not
+
+bool
+zsync_agent_running (zsync_agent_t *self)
+{
+    assert (self);
+    return self->running;
+}
+
+
+// --------------------------------------------------------------------------
+// Gets the current state
+
+uint64_t
+zsync_agent_current_state (zsync_agent_t *self)
+{
+    assert (self);
+    return (*self->get_current_state)();
+}
+
+// --------------------------------------------------------------------------
+// Passes a list of updated files
+
+void zsync_agent_pass_update (zsync_agent_t *self, char *sender, zlist_t* fmetadata)
+{
+    assert (self);
+    (*self->pass_update)(sender, fmetadata);
+}
+
+// --------------------------------------------------------------------------
+// Passes chunk of a file
+
+void
+zsync_agent_pass_chunk (zsync_agent_t *self, byte *chunk, char *path, uint64_t sequence, uint64_t offset)
+{
+    assert (self);
+    (*self->pass_chunk)(chunk, path, sequence, offset);
+}
+// --------------------------------------------------------------------------
+// Gets a list of updates starting by the from state to the current state
+
+zlist_t *
+zsync_agent_update (zsync_agent_t *self, uint64_t from_state)
+{
+    assert (self);
+    return (*self->get_update)(from_state);
+}
+
+
+// --------------------------------------------------------------------------
+// Gets a chunk from client
+
+byte *
+zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset) 
+{
+    assert (self);
+    return (*self->get_chunk) (path, chunk_size, offset);
+}
+
+
+// --------------------------------------------------------------------------
 // Pseudo test function
 
-void 
-test_pass_last_state(uint64_t lstate, zlist_t *list, uint64_t *cstate)
+uint64_t 
+test_get_current_state (uint64_t from_state) 
 {
-    printf("%"PRId64"\n", lstate);     
+    printf("%"PRId64"\n", from_state);     
 }
     
-int
-zsync_agent_test (char *id)
+void
+zsync_agent_test ()
 {
     printf("selftest zsync_agent* \n");
-    printf("testing pass_last_state...\n");
     
     zsync_agent_t *agent = zsync_agent_new();
     
-    zsync_agent_set_pass_lstate(agent, test_pass_last_state); 
-    (*agent->pass_last_state)(2, NULL, NULL);
+    zsync_agent_set_get_current_state (agent, test_get_current_state); 
+    (*agent->get_current_state)(2);
 
     zsync_agent_destroy (&agent);
     printf("OK\n");
-    return 0;
 }
 

@@ -39,7 +39,8 @@
 
 struct _zsync_node_t {
     zctx_t *ctx;
-    zyre_t *zyre;               // zyre
+    zyre_t *zyre;               // Zyre
+    zsync_agent_t *agent;       // Zsync agent
     void *fmpipe;               // file management pipe
     zuuid_t *own_uuid;          // uuid of this node
     zlist_t *peers;
@@ -161,7 +162,8 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
     zsync_peer_t *sender;
     char *zyre_sender;
     zuuid_t *sender_uuid;
-    zmsg_t *zyre_in, *zyre_out;
+    zmsg_t *zyre_in, *zyre_out, *fm_msg;
+    zlist_t *fpaths, *fmetadata;
     
     zyre_sender = zyre_event_sender (event); // get tmp uuid
 
@@ -172,12 +174,15 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             break;        
         case ZYRE_EVENT_JOIN:
             printf ("ZS_JOIN: %s\n", zyre_sender);
-            sender = zhash_lookup (self->zyre_peers, zyre_sender);
+            // sender = zhash_lookup (self->zyre_peers, zyre_sender);
             // send GREET message
             zyre_out = zmsg_new ();
-            // TODO get real current state
-            zs_msg_pack_greet (zyre_out, zuuid_data (self->own_uuid), 0x55);
+            uint64_t state = zsync_agent_current_state(self->agent); 
+            zs_msg_pack_greet (zyre_out, zuuid_data (self->own_uuid), state);
             zyre_whisper (self->zyre, zyre_sender, &zyre_out);
+            break;
+        case ZYRE_EVENT_LEAVE:
+        case ZYRE_EVENT_EXIT:
             break;
         case ZYRE_EVENT_WHISPER:
             printf ("ZS_WHISPER: %s\n", zyre_sender);
@@ -185,7 +190,6 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             zyre_in = zyre_event_msg (event);
             zs_msg_t *msg = zs_msg_unpack (zyre_in);
             
-            // TODO introdues state flow engine
             switch (zs_msg_get_cmd (msg)) {
                 case ZS_CMD_GREET:
                     // 1. Get perm uuid
@@ -208,59 +212,68 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     zsync_peer_set_connected (sender, true);
                     // 5. Send LAST_STATE if differs 
                     printf ("last known state: %"PRId64"\n", zsync_peer_state (sender));
-                    // TODO change back to > instead of =
+                    // TODO change back to > instead of >=
                     if (current_state >= last_state) {
                         zmsg_t *lmsg = zmsg_new ();
                         zs_msg_pack_last_state (lmsg, last_state);
                         zyre_whisper (self->zyre, zyre_sender, &lmsg);
-                        // TODO Flow point, expect update
                     } else { 
-                        // TODO Flow point, no update
                         zsync_peer_set_ready (sender, true);
                     }
                     break;
                 case ZS_CMD_LAST_STATE:
                     assert (sender);
-                    // TODO Get update (from, to) from Qt-Client
                     zyre_out = zmsg_new ();
-                    zlist_t *filemeta_list = zlist_new ();
-                    zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
-                    zs_fmetadata_set_path (fmetadata, "%s", "a.txt");
-                    zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_UPD);
-                    zs_fmetadata_set_size (fmetadata, 0x1533);
-                    zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
-                    zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
-                    zlist_append(filemeta_list, fmetadata);
-                    zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
-                    zs_fmetadata_set_path (fmetadata2, "%s", "b.txt");
-                    zs_fmetadata_set_renamed_path (fmetadata2, "%s", "c.txt");
-                    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_REN);
-                    zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
-                    zlist_append(filemeta_list, fmetadata2);
-
-                    zs_msg_pack_update (zyre_out, 0x55, filemeta_list);
-                    zyre_whisper (self->zyre, zyre_sender, &zyre_out);
+                    // Gets updates from client
+                    zlist_t *filemeta_list = zsync_agent_update (self->agent, 0x1);
+                   
+                    if (filemeta_list) { 
+                        // Send UPDATE
+                        current_state = zs_msg_get_state (msg);
+                        zs_msg_pack_update (zyre_out, current_state, filemeta_list);
+                        zyre_whisper (self->zyre, zyre_sender, &zyre_out);
+                    }
                     break;
                 case ZS_CMD_UPDATE:
                     assert (sender);
-                    // TODO Give update to Qt-Client
                     zsync_peer_set_ready (sender, true);
                     uint64_t state = zs_msg_get_state (msg);
                     zsync_peer_set_state (sender, state); 
                     zsync_node_save_peers (self);
+
+                    fmetadata = zs_msg_get_fmetadata (msg);
+                    zsync_agent_pass_update (self->agent, zsync_peer_uuid (sender), fmetadata);
                     break;
                 case ZS_CMD_REQUEST_FILES:
-                    // TODO protocol managed files transfer
-                    // TODO new thread and socket
+                    printf ("REQUEST FILES\n");
+                    fpaths = zs_msg_fpaths (msg);
+                    char *fpath = zs_msg_fpaths_first (msg);
+                    zmsg_t *fm_msg = zmsg_new ();
+                    zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
+                    while (fpath) {
+                        zmsg_addstr (fm_msg, "%s", fpath);
+                        fpath = zs_msg_fpaths_next (msg);
+                    }
+                    zmsg_send (&fm_msg, self->fmpipe);
                     break;
                 case ZS_CMD_GIVE_CREDIT:
-                    // TODO protocol managed credit
+                    fm_msg = zmsg_new ();
+                    zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
+                    zmsg_addstr (fm_msg, "%s", "CREDIT");
+                    zmsg_addstr (fm_msg, "%"PRId64, zs_msg_get_credit (msg));
+                    zmsg_send (&fm_msg, self->fmpipe);
                     break;
                 case ZS_CMD_SEND_CHUNK:
-                    // TODO Give chunk to Qt-Client
+                    printf("SEND_CHUNK (RCV)");
+                    byte *chunk = zframe_data (zs_msg_get_chunk (msg));
+                    char *path = zs_msg_get_file_path (msg);
+                    uint64_t seq = zs_msg_get_sequence (msg);
+                    uint64_t off = zs_msg_get_offset (msg);
+                    zsync_agent_pass_chunk (self->agent, chunk, path, seq, off);
                     break;
                 case ZS_CMD_ABORT:
                     // TODO abort protocol managed file transfer
+                    printf("ABORT\n");
                     break;
                 default:
                     assert (false);
@@ -275,43 +288,48 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
     zyre_event_destroy (&event);
 }
 
-void
-zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
+void *
+zsync_node_engine (void *args)
 {
+    int rc;    
+    zsync_agent_t *agent = (zsync_agent_t *) args;
     zsync_node_t *self = zsync_node_new ();
-
-    // Start zyre and join group
-    zyre_start (self->zyre);
-    zyre_join (self->zyre, "ZSYNC");
+    self->ctx = zsync_agent_ctx (agent);
+    self->zyre = zsync_agent_zyre (agent);
+    self->agent = agent;
+    
+    // Join group
+    rc = zyre_join (self->zyre, "ZSYNC");
+    assert (rc == 0);
 
     // Give time to interconnect
     zclock_sleep (250);
 
     // Create thread for file management
-    // self->fmpipe = zthread_fork (self->ctx, NULL, NULL);
+    self->fmpipe = zthread_fork (self->ctx, zsync_ftmanager_engine, agent);
 
-    zpoller_t *poller = zpoller_new (zyre_socket (self->zyre), NULL);
+    zpoller_t *poller = zpoller_new (zyre_socket (self->zyre), self->fmpipe, NULL);
 
     // Start receiving messages
-    int count = 5;
-    // while (!zpoller_terminated (poller)) {
-    // TODO use pipe to agent to shutdown properly
-    while (count--) {
-        // TODO pool from zyre and file_transfer_management
+    while (zsync_agent_running (self->agent)) {
         void *which = zpoller_wait (poller, -1);
         if (which == zyre_socket (self->zyre)) {
             zsync_node_recv_from_zyre (self, zyre_event_recv (self->zyre));
+        } else
+        // TODO pool from zyre and file_transfer_management
+        if (which == self->fmpipe) {
+            zmsg_t *msg = zmsg_recv (self->fmpipe);
         }
     }
     zsync_node_destroy (&self);
     zpoller_destroy (&poller);
+    zsync_agent_stop (self->agent);
 }
 
 int
 zsync_node_test () 
 {
     printf ("zsync_node: \n");
-    zsync_node_engine (NULL, NULL, NULL);
     printf("OK\n");
 }
 

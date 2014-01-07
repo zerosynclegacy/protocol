@@ -133,7 +133,7 @@ void
     zs_msg_set_fpaths (zs_msg_t *self, zlist_t *fpaths);
 
 zlist_t *
-    zs_msg_get_fpaths (zs_msg_t *self);
+    zs_msg_fpaths (zs_msg_t *self);
 
 // Iterate fpaths
 

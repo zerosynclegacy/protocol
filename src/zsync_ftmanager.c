@@ -36,12 +36,40 @@
 
 #include "zsync_classes.h"
 
+#define CHUNK_SIZE 30000
+
+struct _zsync_ftfile_t {
+    char *path;
+    uint64_t offset;
+};
+
 struct _zsync_ftrequest_t {
     zlist_t *requested_files;
     uint64_t credit;
 };
 
+typedef struct _zsync_ftfile_t zsync_ftfile_t;
 typedef struct _zsync_ftrequest_t zsync_ftrequest_t;
+
+zsync_ftfile_t *
+zsync_ftfile_new ()
+{
+    zsync_ftfile_t *self = (zsync_ftfile_t *) zmalloc (sizeof (zsync_ftfile_t));
+    return self;
+}
+
+void
+zsync_ftfile_destroy (zsync_ftfile_t **self_p)
+{
+    assert (self_p);
+
+    if (*self_p) {
+        zsync_ftfile_t *self = *self_p;
+        free (self->path);
+        free (self);
+        self_p = NULL;
+    }
+}
 
 zsync_ftrequest_t *
 zsync_ftrequest_new ()
@@ -64,13 +92,65 @@ zsync_ftrequest_destroy (zsync_ftrequest_t **self_p)
     }
 }
 
+int peer_request_foreach (const char *key, void *item, void *argument) {
+    zsync_ftrequest_t *request = (zsync_ftrequest_t *) item;
+    zsync_agent_t *agent = (zsync_agent_t *) argument;
+    int request_count = zlist_size (request->requested_files);
+    
+    if (request_count > 0 && request->credit > CHUNK_SIZE) {
+        zsync_ftfile_t *file = zlist_first (request->requested_files);
+        byte *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
+        if (chunk) {
+            file->offset += CHUNK_SIZE;
+            // pack msg send to node
+        } else {
+            (void *) zlist_pop (request->requested_files); 
+        }
+        return 1;            
+    }
+    return 0;
+}
+
 void
 zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
 {
     zhash_t *peer_requests = zhash_new ();
+    zsync_agent_t *agent = (zsync_agent_t *) args;
 
-    while (true) {
-        // TODO
+    printf ("ft started\n");
+    while (zsync_agent_running (agent)) {
+        zmsg_t *msg = zmsg_recv (pipe);
+        
+        // First frame is sender 
+        char *sender = zmsg_popstr (msg);
+        // Get file transfer request object
+        zsync_ftrequest_t *ftrequest = zhash_lookup (peer_requests, sender);
+        if (!ftrequest) {
+            ftrequest = zsync_ftrequest_new ();
+            zhash_insert (peer_requests, sender, ftrequest);
+        }
+
+        // Get command
+        char *cmd = zmsg_popstr (msg);
+        if (strcmp (cmd, "REQUEST")) {
+            char *fpath = zmsg_popstr (msg);
+            while (fpath) {
+                // TODO check for duplicates
+                zlist_append (ftrequest->requested_files, fpath);
+                fpath = zmsg_popstr (msg);
+            }
+        }
+        else if (strcmp (cmd, "CREDIT")) {
+            uint64_t credit;
+            sscanf (zmsg_popstr (msg), "%"SCNd64, &credit);
+            ftrequest->credit += credit;
+        }
+        else if (strcmp (cmd, "ABORT")) {
+             printf("FT_ABORT");
+        }
+        
+        zhash_foreach (peer_requests, peer_request_foreach, agent);
+
         // Poll from pipe, until empty then proceed
         //   Append to files to requested files
         //   Manage Credit

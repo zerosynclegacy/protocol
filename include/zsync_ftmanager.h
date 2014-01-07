@@ -1,5 +1,5 @@
 /* =========================================================================
-    zsync_node.h - node on ZeroSync network
+    zsync_ftmanager.h - File transfer manager
 
    -------------------------------------------------------------------------
    Copyright (c) 2013 Kevin Sapper, Bernhard Finger
@@ -21,29 +21,19 @@
    =========================================================================
 */
 
-#ifndef __ZSYNC_NODE_H_INCLUDED__
-#define __ZSYNC_NODE_H_INCLUDED__
+#ifndef __ZSYNC_FTMANAGER_H_INCLUDED__
+#define __ZSYNC_FTMANAGER_H_INCLUDED__
  
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Opaque class structure
-typedef struct _zsync_node_t zsync_node_t;
-
-// @interface
-static zsync_node_t *
-    zsync_node_new ();
-
-void *
-    zsync_node_engine (void *args);
-
-int
-    zsync_node_test ();
-// @end
+void
+    zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe);
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif
+

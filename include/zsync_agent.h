@@ -31,11 +31,24 @@ extern "C" {
 // Opaque class structure
 typedef struct _zsync_agent_t zsync_agent_t;
 
+// Create a new zsync_agent
+zsync_agent_t *
+    zsync_agent_new ();
+
+// Destroys a zsync_agent
+void
+    zsync_agent_destroy (zsync_agent_t **agent);
+
+// Starts the protocol execution, returns -1 if a function ptr isn´t set else 0
 int 
     zsync_agent_start (zsync_agent_t *self);
 
+// zsync_agent stop, failed if a function ptr isn´t set
+void
+    zsync_agent_stop (zsync_agent_t *self);
+
 void 
-    zsync_agent_send_request_files (zsync_agent_t *agent, zlist_t *list);
+    zsync_agent_send_request_files (zsync_agent_t *agent, char *sender, zlist_t *list);
 
 void 
     zsync_agent_send_update (zsync_agent_t *agent, uint64_t state, zlist_t *list);
@@ -43,18 +56,61 @@ void
 void 
     zsync_agent_send_abort (zsync_agent_t *agent, char *fileToAbort);
 
+// Sets the pass_update callback method
 void 
-    zsync_agent_set_pass_lstate (zsync_agent_t *self, void *ptr);
+    zsync_agent_set_pass_update (zsync_agent_t *self, void *ptr);
 
+// Sets the pass_chunk callback method
 void 
     zsync_agent_set_pass_chunk (zsync_agent_t *self, void *ptr);
 
+// Sets the get_update callback method
+void 
+    zsync_agent_set_get_update (zsync_agent_t *self, void *ptr);
+
+// Sets the get_current_state callback method
+void 
+    zsync_agent_set_get_current_state (zsync_agent_t *self, void *ptr);
+
+// Sets the get_chunk callback method
 void 
     zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr);
 
-void 
-    zsync_agent_set_get_lstate (zsync_agent_t *self, void *ptr);
+// Gets the zeromq context
+zctx_t *
+    zsync_agent_ctx (zsync_agent_t *self);
 
+// Gets the Zyre object
+zyre_t *
+    zsync_agent_zyre (zsync_agent_t *self);
+
+// Passes a list with updated files
+void 
+    zsync_agent_pass_update (zsync_agent_t *self, char *sender, zlist_t* fmetadata);
+
+// Passes chunk of a file
+void
+    zsync_agent_pass_chunk (zsync_agent_t *self, byte *chunk, char *path, uint64_t sequence, uint64_t offset);
+
+// Gets the current state
+uint64_t
+    zsync_agent_current_state (zsync_agent_t *self);
+
+// Gets a list of updates starting by the from state to the current state
+zlist_t *
+    zsync_agent_update (zsync_agent_t *self, uint64_t from_state);
+
+// Gets a list of updates starting by the from state to the current state
+byte *
+    zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset);
+
+// Returns whether the agents has been started or not
+bool
+    zsync_agent_running (zsync_agent_t *self);
+
+// Selftest this class
+void
+    zsync_agent_test();
 
 #ifdef __cplusplus
 }
