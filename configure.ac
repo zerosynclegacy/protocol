@@ -25,6 +25,18 @@ AC_LIBTOOL_WIN32_DLL
 AM_PROG_AR
 AC_PROG_LIBTOOL
 
+#
+# Libtool -version-info (ABI version)
+#
+# Currently 1.0.0 ("stable"). Don't change this unless you
+# know exactly what you're doing and have read and understand
+# http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
+#
+# libzsync -version-info
+LTVER="1:0:0"
+AC_SUBST(LTVER)
+
+
 
 # Checks libraries
 AC_CHECK_LIB([zmq], [zmq_init], [], 

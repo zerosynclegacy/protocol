@@ -27,14 +27,17 @@ int handleClient(void *serverD){
     while (true) {
         file = fileHandle();
         printf("Get the credit size...");
-        zs_msg_t *rcvMsg = zs_msg_recv (serverD);
+        zmsg_t *zmsg = zmsg_recv (serverD);
+        zs_msg_t *rcvMsg = zs_msg_unpack (zmsg);
         printf("... %"PRId64" \n", zs_msg_get_credit(rcvMsg));
         
         while (true) {
             if(feof(file)){
                 printf("End of file reached. \n");
+                zmsg_t *msg = zmsg_new ();
                 zframe_t *endFrame = zframe_new(NULL, 0);
-                zs_msg_send_chunk(serverD, seq++, "/home/burne/Documents/testdata", offset++, endFrame);
+                zs_msg_pack_chunk(msg, seq++, "/home/burne/Documents/testdata", offset++, endFrame);
+                zmsg_send (&msg, serverD);
                 printf("End message sent!\n");
                 break;
             }
@@ -47,11 +50,13 @@ int handleClient(void *serverD){
                 printf("Realloced data! %d \n", (int)size);
             }
 
+            zmsg_t *msg = zmsg_new ();
             zframe_t *chunk = zframe_new(data, size); 
             
-            if(zs_msg_send_chunk(serverD, seq++, "/home/burne/Documents/testdata", offset++, chunk ) == 1){
+            if(zs_msg_pack_chunk(serverD, seq++, "/home/burne/Documents/testdata", offset++, chunk ) == 1){
                 printf("Attention: Sending failed.\n");
             }
+            zmsg_send (&msg, serverD);
             printf("Chunk sent, size: %d \n", (int)size);
             free(data);
                 

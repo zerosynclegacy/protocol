@@ -1,0 +1,47 @@
+# ZeroSync
+
+mkdir build
+cd build
+
+#   Build required ZeroSync projects first
+sudo apt-get install uuid-dev
+
+#   libsodium
+git clone git://github.com/jedisct1/libsodium.git
+cd libsodium
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+
+#   libzmq
+git clone git://github.com/zeromq/libzmq.git
+cd libzmq
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+
+#   CZMQ
+git clone git://github.com/zeromq/czmq.git
+cd czmq
+./autogen.sh
+./configure && make check
+sudo make install
+sudo ldconfig
+cd ..
+
+#   Zyre
+git clone git://github.com/zeromq/zyre.git
+#cd zyre
+#./autogen.sh
+#./configure && make check
+#sudo make install
+#sudo ldconfig
+#cd ..
+
+#   Build and check libzsync
+#script: ./autogen.sh && ./configure && make # && make check
+

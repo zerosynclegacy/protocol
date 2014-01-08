@@ -29,9 +29,9 @@ extern "C" {
 #endif
 
 // Message commands 
-#define ZS_CMD_LAST_STATE 0x1
-#define ZS_CMD_UPDATE 0x2
-#define ZS_CMD_NO_UPDATE 0x3
+#define ZS_CMD_GREET 0x1
+#define ZS_CMD_LAST_STATE 0x2
+#define ZS_CMD_UPDATE 0x3
 #define ZS_CMD_REQUEST_FILES 0x4
 #define ZS_CMD_GIVE_CREDIT 0x5
 #define ZS_CMD_SEND_CHUNK 0x6 
@@ -57,35 +57,35 @@ void
 
 // receive messages
 zs_msg_t *
-    zs_msg_recv (void *input);
+    zs_msg_unpack (zmsg_t *input);
 
-// send LAST_STATE
+// pack GREET
 int 
-    zs_msg_send_last_state (void *output, uint64_t state);
+    zs_msg_pack_greet (zmsg_t *output, byte *uuid,  uint64_t state);
  
-// send FILE_LIST
-int
-    zs_msg_send_update (void *output, uint64_t state, zlist_t *filemeta_list);
+// pack LAST_STATE
+int 
+    zs_msg_pack_last_state (zmsg_t *output, uint64_t last_state);
  
-// send NO_UPDATE
+// pack FILE_LIST
 int
-    zs_msg_send_no_update (void *output);
+    zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *filemeta_list);
  
-// send REQUEST_FILES
+// pack REQUEST_FILES
 int
-    zs_msg_send_request_files (void *output, zlist_t *fpaths);
+    zs_msg_pack_request_files (zmsg_t *output, zlist_t *fpaths);
 
-// send GIVE CREDIT
+// pack GIVE CREDIT
 int
-    zs_msg_send_give_credit (void *output, uint64_t credit);
+    zs_msg_pack_give_credit (zmsg_t *output, uint64_t credit);
 
-// send SEND CHUNK
+// pack SEND CHUNK
 int
-    zs_msg_send_chunk (void *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk);
+    zs_msg_pack_chunk (zmsg_t *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk);
 
-// send NO_UPDATE
+// pack NO_UPDATE
 int
-    zs_msg_send_abort (void *output);
+    zs_msg_pack_abort (zmsg_t *output);
  
 
 // --------------------------------------------------------------------------
@@ -94,6 +94,13 @@ int
 // getter/setter message command    
 int
     zs_msg_get_cmd (zs_msg_t *self);
+
+// getter/setter message uuid
+void
+    zs_msg_set_uuid (zs_msg_t *self, byte *uuid);
+
+byte *
+    zs_msg_uuid (zs_msg_t *self);
 
 // getter/setter message state    
 void
@@ -126,7 +133,7 @@ void
     zs_msg_set_fpaths (zs_msg_t *self, zlist_t *fpaths);
 
 zlist_t *
-    zs_msg_get_fpaths (zs_msg_t *self);
+    zs_msg_fpaths (zs_msg_t *self);
 
 // Iterate fpaths
 
