@@ -9,7 +9,7 @@ The implementation heavily relies on the awesome messaging framework *ØMQ* and 
 
 ## Interested?
 
-Have a look at our [wiki](http://wiki.libzs.zerosync.org) for a detailed inside of libzs's use cases.
+Have a look at our [wiki](http://wiki.libzs.zerosync.org) for a client API and insight into to protocol setup.
 
 ## Links of interest
 
