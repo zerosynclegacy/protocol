@@ -69,6 +69,7 @@ zsync_node_new ()
         zchunk_t *uuid_chunk = zfile_read (uuid_file, 16, 0);
         assert (zchunk_size (uuid_chunk) == 16);    // make sure read succeeded
         zuuid_set (self->own_uuid, zchunk_data (uuid_chunk));
+        zfile_destroy (&uuid_file);
     } else {
         // Write uuid to file
         zfile_t *uuid_file = zfile_new (".", UUID_FILE);
@@ -77,6 +78,7 @@ zsync_node_new ()
         zchunk_t *uuid_bin = zchunk_new ( zuuid_data (self->own_uuid), 16);
         rc = zfile_write (uuid_file, uuid_bin, 0);
         assert (rc == 0);
+        zfile_destroy (&uuid_file);
     }
     
     // Obtain peers and states
