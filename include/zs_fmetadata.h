@@ -92,5 +92,8 @@ int
     zs_fmetadata_test ();
 // @end
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
