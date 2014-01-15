@@ -35,8 +35,8 @@ typedef struct _zsync_node_t zsync_node_t;
 static zsync_node_t *
     zsync_node_new ();
 
-void *
-    zsync_node_engine (void *args);
+void
+    zsync_node_engine (void *args, zctx_t *ctx, void *pipe);
 
 int
     zsync_node_test ();

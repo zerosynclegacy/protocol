@@ -40,6 +40,7 @@
 
 struct _zsync_ftfile_t {
     char *path;
+    uint64_t sequence;
     uint64_t offset;
 };
 
@@ -55,6 +56,8 @@ zsync_ftfile_t *
 zsync_ftfile_new ()
 {
     zsync_ftfile_t *self = (zsync_ftfile_t *) zmalloc (sizeof (zsync_ftfile_t));
+    self->sequence = 0;
+    self->offset = 0;
     return self;
 }
 
@@ -92,32 +95,14 @@ zsync_ftrequest_destroy (zsync_ftrequest_t **self_p)
     }
 }
 
-int peer_request_foreach (const char *key, void *item, void *argument) {
-    zsync_ftrequest_t *request = (zsync_ftrequest_t *) item;
-    zsync_agent_t *agent = (zsync_agent_t *) argument;
-    int request_count = zlist_size (request->requested_files);
-    
-    if (request_count > 0 && request->credit > CHUNK_SIZE) {
-        zsync_ftfile_t *file = zlist_first (request->requested_files);
-        byte *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
-        if (chunk) {
-            file->offset += CHUNK_SIZE;
-            // pack msg send to node
-        } else {
-            (void *) zlist_pop (request->requested_files); 
-        }
-        return 1;            
-    }
-    return 0;
-}
-
 void
 zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
 {
     zhash_t *peer_requests = zhash_new ();
     zsync_agent_t *agent = (zsync_agent_t *) args;
+    int rc;
 
-    printf ("ft started\n");
+    printf("[FT] started\n");
     while (zsync_agent_running (agent)) {
         zmsg_t *msg = zmsg_recv (pipe);
         
@@ -140,27 +125,49 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                 fpath = zmsg_popstr (msg);
             }
         }
-        else if (strcmp (cmd, "CREDIT")) {
+        else 
+        if (strcmp (cmd, "CREDIT")) {
             uint64_t credit;
             sscanf (zmsg_popstr (msg), "%"SCNd64, &credit);
             ftrequest->credit += credit;
         }
-        else if (strcmp (cmd, "ABORT")) {
-             printf("FT_ABORT");
+        else 
+        if (strcmp (cmd, "ABORT")) {
+             printf("[FT] FT_ABORT");
         }
-        
-        zhash_foreach (peer_requests, peer_request_foreach, agent);
-
-        // Poll from pipe, until empty then proceed
-        //   Append to files to requested files
-        //   Manage Credit
-        //   Abort requested files
-        // Get requested file's chunks from Qt-Client
-        // Send chunks according if there's credit else skip
-        //   In case of no credit at all wait even on empty pipe
-        // repeat after sending one chunk, so abort messages can be taken into account
+       
+        // Search for file transfer request
+        // Transfer one chunk then proceed 
+        zlist_t *keys = zhash_keys (peer_requests);
+        char *key = zlist_first (keys);
+        while (key) {
+            zsync_ftrequest_t *request =  zhash_lookup (peer_requests, key);
+            int request_count = zlist_size (request->requested_files);
+            
+            if (request_count > 0 && request->credit > CHUNK_SIZE) {
+                zsync_ftfile_t *file = zlist_first (request->requested_files);
+                byte *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
+                if (chunk) {
+                    file->sequence++;
+                    file->offset += CHUNK_SIZE;
+                    zframe_t *data = zframe_new (chunk, CHUNK_SIZE);
+                    zmsg_t *msg = zmsg_new ();
+                    // First frame sender uuid
+                    zmsg_pushstr (msg, "%s", key);
+                    rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
+                    assert (rc == 0);
+                    zmsg_send (&msg, pipe); // Forward chunk to node
+                } 
+                else {
+                    (void *) zlist_pop (request->requested_files); 
+                }
+                // Advance after sending one chunk, in order to catch abort 
+                break;            
+            }
+            key = zlist_next (keys);
+        }
     }
-
+    printf("[FT] stopped\n");
     zhash_destroy (&peer_requests);
 }
 

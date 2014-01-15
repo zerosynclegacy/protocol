@@ -1,0 +1,183 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+CHUNK_SIZE	fileTransferServer.c	12;"	d	file:
+CHUNK_SIZE	zsync_ftmanager.c	39;"	d	file:
+GET_BLOCK	zs_msg.c	70;"	d	file:
+GET_NUMBER1	zs_msg.c	104;"	d	file:
+GET_NUMBER2	zs_msg.c	112;"	d	file:
+GET_NUMBER8	zs_msg.c	121;"	d	file:
+GET_STRING	zs_msg.c	144;"	d	file:
+PEER_STATES_FILE	zsync_node.c	38;"	d	file:
+PUT_BLOCK	zs_msg.c	64;"	d	file:
+PUT_NUMBER1	zs_msg.c	78;"	d	file:
+PUT_NUMBER2	zs_msg.c	84;"	d	file:
+PUT_NUMBER8	zs_msg.c	91;"	d	file:
+PUT_STRING	zs_msg.c	136;"	d	file:
+SIGNATURE	zs_msg.c	58;"	d	file:
+UUID_FILE	zsync_node.c	37;"	d	file:
+_zs_fmetadata_t	zs_fmetadata.c	/^struct _zs_fmetadata_t {$/;"	s	file:
+_zs_msg_t	zs_msg.c	/^struct _zs_msg_t {$/;"	s	file:
+_zsync_agent_t	zsync_agent.c	/^struct _zsync_agent_t {$/;"	s	file:
+_zsync_ftfile_t	zsync_ftmanager.c	/^struct _zsync_ftfile_t {$/;"	s	file:
+_zsync_ftrequest_t	zsync_ftmanager.c	/^struct _zsync_ftrequest_t {$/;"	s	file:
+_zsync_node_t	zsync_node.c	/^struct _zsync_node_t {$/;"	s	file:
+_zsync_peer_t	zsync_peer.c	/^struct _zsync_peer_t {$/;"	s	file:
+agent	zsync_node.c	/^    zsync_agent_t *agent;       \/\/ Zsync agent$/;"	m	struct:_zsync_node_t	file:
+agent	zsync_selftest.c	/^zsync_agent_t *agent;$/;"	v
+ceiling	zs_msg.c	/^    byte *ceiling;          \/\/ valid upper limit for needle$/;"	m	struct:_zs_msg_t	file:
+checksum	zs_fmetadata.c	/^    uint64_t checksum;      \/\/ SHA-3 512$/;"	m	struct:_zs_fmetadata_t	file:
+chunk	zs_msg.c	/^    zframe_t *chunk;$/;"	m	struct:_zs_msg_t	file:
+cmd	zs_msg.c	/^    int cmd;                \/\/ zs_msg command$/;"	m	struct:_zs_msg_t	file:
+connected	zsync_peer.c	/^    bool connected;$/;"	m	struct:_zsync_peer_t	file:
+credit	fileTransferClient.c	10;"	d	file:
+credit	zs_msg.c	/^    uint64_t credit;        \/\/ given credit for RP $/;"	m	struct:_zs_msg_t	file:
+credit	zsync_ftmanager.c	/^    uint64_t credit;$/;"	m	struct:_zsync_ftrequest_t	file:
+ctx	zsync_agent.c	/^    zctx_t *ctx;$/;"	m	struct:_zsync_agent_t	file:
+ctx	zsync_node.c	/^    zctx_t *ctx;$/;"	m	struct:_zsync_node_t	file:
+file	fileTransferServer.c	/^FILE* file;$/;"	v
+fileHandle	fileTransferServer.c	/^FILE* fileHandle(){$/;"	f
+file_path	zs_msg.c	/^    char *file_path;$/;"	m	struct:_zs_msg_t	file:
+fmetadata	zs_msg.c	/^    zlist_t *fmetadata;     \/\/ zlist of file meta data list$/;"	m	struct:_zs_msg_t	file:
+fmpipe	zsync_node.c	/^    void *fmpipe;               \/\/ file management pipe$/;"	m	struct:_zsync_node_t	file:
+fpaths	zs_msg.c	/^    zlist_t *fpaths;        \/\/ zlist of file paths$/;"	m	struct:_zs_msg_t	file:
+get_chunk	zsync_agent.c	/^    byte* (*get_chunk)(char* path, uint64_t chunk_size, uint64_t offset);$/;"	m	struct:_zsync_agent_t	file:
+get_chunk	zsync_selftest.c	/^get_chunk (char *path, uint64_t chunk_size, uint64_t offset)$/;"	f
+get_current_state	zsync_agent.c	/^    uint64_t (*get_current_state)();$/;"	m	struct:_zsync_agent_t	file:
+get_current_state	zsync_selftest.c	/^get_current_state () $/;"	f
+get_update	zsync_agent.c	/^    zlist_t* (*get_update)(uint64_t from_state);$/;"	m	struct:_zsync_agent_t	file:
+get_update	zsync_selftest.c	/^get_update (uint64_t from_state)$/;"	f
+handleClient	fileTransferServer.c	/^int handleClient(void *serverD){$/;"	f
+main	fileTransferClient.c	/^int main(int argc, char **argv){$/;"	f
+main	fileTransferServer.c	/^int main(int argc, char **argv){$/;"	f
+main	zsync_selftest.c	/^main (int argc, char *argv [])$/;"	f
+needle	zs_msg.c	/^    byte *needle;           \/\/ read\/write pointer for serialization$/;"	m	struct:_zs_msg_t	file:
+offset	zs_msg.c	/^    uint64_t offset;$/;"	m	struct:_zs_msg_t	file:
+offset	zsync_ftmanager.c	/^    uint64_t offset;$/;"	m	struct:_zsync_ftfile_t	file:
+operation	zs_fmetadata.c	/^    int operation;$/;"	m	struct:_zs_fmetadata_t	file:
+own_uuid	zsync_node.c	/^    zuuid_t *own_uuid;          \/\/ uuid of this node$/;"	m	struct:_zsync_node_t	file:
+pass_chunk	zsync_agent.c	/^    void (*pass_chunk)(byte *chunk, char *path, uint64_t sequence, uint64_t offset);$/;"	m	struct:_zsync_agent_t	file:
+pass_chunk	zsync_selftest.c	/^pass_chunk (byte *chunk, char *path, uint64_t sequence, uint64_t offset)$/;"	f
+pass_update	zsync_agent.c	/^    void (*pass_update)(char *sender, zlist_t *file_metadata);$/;"	m	struct:_zsync_agent_t	file:
+pass_update	zsync_selftest.c	/^pass_update (char *sender, zlist_t *fmetadata) $/;"	f
+path	zs_fmetadata.c	/^    char *path;             \/\/ file path + file name$/;"	m	struct:_zs_fmetadata_t	file:
+path	zsync_ftmanager.c	/^    char *path;$/;"	m	struct:_zsync_ftfile_t	file:
+path_renamed	zs_fmetadata.c	/^    char *path_renamed;     \/\/ file path + file name of renamed file$/;"	m	struct:_zs_fmetadata_t	file:
+peer_request_foreach	zsync_ftmanager.c	/^int peer_request_foreach (const char *key, void *item, void *argument) {$/;"	f
+peers	zsync_node.c	/^    zlist_t *peers;$/;"	m	struct:_zsync_node_t	file:
+rcv_chunks	fileTransferClient.c	/^int rcv_chunks(void *dealer){$/;"	f
+ready	zsync_peer.c	/^    bool ready;$/;"	m	struct:_zsync_peer_t	file:
+requested_files	zsync_ftmanager.c	/^    zlist_t *requested_files;$/;"	m	struct:_zsync_ftrequest_t	file:
+running	zsync_agent.c	/^    bool running;$/;"	m	struct:_zsync_agent_t	file:
+sequence	zs_msg.c	/^    uint64_t sequence;$/;"	m	struct:_zs_msg_t	file:
+signature	zs_msg.c	/^    uint16_t signature;     \/\/ zs_msg signature$/;"	m	struct:_zs_msg_t	file:
+size	zs_fmetadata.c	/^    uint64_t size;          \/\/ file size in bytes$/;"	m	struct:_zs_fmetadata_t	file:
+state	zs_msg.c	/^    uint64_t state;$/;"	m	struct:_zs_msg_t	file:
+state	zsync_peer.c	/^    uint64_t state;$/;"	m	struct:_zsync_peer_t	file:
+test_get_current_state	zsync_agent.c	/^test_get_current_state (uint64_t from_state) $/;"	f
+test_integrate_components	zsync_selftest.c	/^void test_integrate_components ()$/;"	f
+timestamp	zs_fmetadata.c	/^    uint64_t timestamp;     \/\/ UNIX timestamp$/;"	m	struct:_zs_fmetadata_t	file:
+uuid	zs_msg.c	/^    byte *uuid;             \/\/ own 16-byte uuid$/;"	m	struct:_zs_msg_t	file:
+uuid	zsync_peer.c	/^    char *uuid;$/;"	m	struct:_zsync_peer_t	file:
+zs_fmetadata_checksum	zs_fmetadata.c	/^zs_fmetadata_checksum (zs_fmetadata_t *self) $/;"	f
+zs_fmetadata_destroy	zs_fmetadata.c	/^zs_fmetadata_destroy (zs_fmetadata_t **self_p) $/;"	f
+zs_fmetadata_dup	zs_fmetadata.c	/^zs_fmetadata_dup (zs_fmetadata_t *self)$/;"	f
+zs_fmetadata_new	zs_fmetadata.c	/^zs_fmetadata_new () $/;"	f
+zs_fmetadata_operation	zs_fmetadata.c	/^zs_fmetadata_operation(zs_fmetadata_t *self)$/;"	f
+zs_fmetadata_path	zs_fmetadata.c	/^zs_fmetadata_path (zs_fmetadata_t *self)$/;"	f
+zs_fmetadata_renamed_path	zs_fmetadata.c	/^zs_fmetadata_renamed_path (zs_fmetadata_t *self)$/;"	f
+zs_fmetadata_set_checksum	zs_fmetadata.c	/^zs_fmetadata_set_checksum (zs_fmetadata_t *self, uint64_t checksum)$/;"	f
+zs_fmetadata_set_operation	zs_fmetadata.c	/^zs_fmetadata_set_operation(zs_fmetadata_t *self, int operation)$/;"	f
+zs_fmetadata_set_path	zs_fmetadata.c	/^zs_fmetadata_set_path (zs_fmetadata_t *self, char *format, ...) $/;"	f
+zs_fmetadata_set_renamed_path	zs_fmetadata.c	/^zs_fmetadata_set_renamed_path (zs_fmetadata_t *self, char *format, ...) $/;"	f
+zs_fmetadata_set_size	zs_fmetadata.c	/^zs_fmetadata_set_size (zs_fmetadata_t *self, uint64_t size) $/;"	f
+zs_fmetadata_set_timestamp	zs_fmetadata.c	/^zs_fmetadata_set_timestamp (zs_fmetadata_t *self, uint64_t timestamp)$/;"	f
+zs_fmetadata_size	zs_fmetadata.c	/^zs_fmetadata_size (zs_fmetadata_t *self) $/;"	f
+zs_fmetadata_test	zs_fmetadata.c	/^zs_fmetadata_test () $/;"	f
+zs_fmetadata_timestamp	zs_fmetadata.c	/^zs_fmetadata_timestamp (zs_fmetadata_t *self) $/;"	f
+zs_msg_destroy	zs_msg.c	/^zs_msg_destroy (zs_msg_t **self_p) $/;"	f
+zs_msg_fmetadata_append	zs_msg.c	/^zs_msg_fmetadata_append (zs_msg_t *self, zs_fmetadata_t *fmetadata_item)$/;"	f
+zs_msg_fmetadata_destroy	zs_msg.c	/^zs_msg_fmetadata_destroy (zs_msg_t **self_p) $/;"	f
+zs_msg_fmetadata_first	zs_msg.c	/^zs_msg_fmetadata_first (zs_msg_t *self)$/;"	f
+zs_msg_fmetadata_next	zs_msg.c	/^zs_msg_fmetadata_next (zs_msg_t *self)$/;"	f
+zs_msg_fpaths	zs_msg.c	/^zs_msg_fpaths (zs_msg_t *self)$/;"	f
+zs_msg_fpaths_append	zs_msg.c	/^zs_msg_fpaths_append (zs_msg_t *self, char *format, ...)$/;"	f
+zs_msg_fpaths_first	zs_msg.c	/^zs_msg_fpaths_first (zs_msg_t *self)$/;"	f
+zs_msg_fpaths_next	zs_msg.c	/^zs_msg_fpaths_next (zs_msg_t *self)$/;"	f
+zs_msg_get_chunk	zs_msg.c	/^zs_msg_get_chunk (zs_msg_t *self)$/;"	f
+zs_msg_get_cmd	zs_msg.c	/^zs_msg_get_cmd (zs_msg_t *self) $/;"	f
+zs_msg_get_credit	zs_msg.c	/^zs_msg_get_credit (zs_msg_t *self)$/;"	f
+zs_msg_get_file_path	zs_msg.c	/^zs_msg_get_file_path (zs_msg_t *self)$/;"	f
+zs_msg_get_fmetadata	zs_msg.c	/^zs_msg_get_fmetadata (zs_msg_t *self) $/;"	f
+zs_msg_get_offset	zs_msg.c	/^zs_msg_get_offset (zs_msg_t *self)$/;"	f
+zs_msg_get_sequence	zs_msg.c	/^zs_msg_get_sequence (zs_msg_t *self)$/;"	f
+zs_msg_get_state	zs_msg.c	/^zs_msg_get_state (zs_msg_t *self) $/;"	f
+zs_msg_new	zs_msg.c	/^zs_msg_new (int cmd) $/;"	f
+zs_msg_pack	zs_msg.c	/^zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)$/;"	f
+zs_msg_pack_abort	zs_msg.c	/^zs_msg_pack_abort (zmsg_t *output) $/;"	f
+zs_msg_pack_chunk	zs_msg.c	/^zs_msg_pack_chunk (zmsg_t *output, uint64_t sequence, char *file_path, uint64_t offset, zframe_t *chunk)$/;"	f
+zs_msg_pack_give_credit	zs_msg.c	/^zs_msg_pack_give_credit (zmsg_t *output, uint64_t credit)$/;"	f
+zs_msg_pack_greet	zs_msg.c	/^zs_msg_pack_greet (zmsg_t *output, byte *uuid, uint64_t state) $/;"	f
+zs_msg_pack_last_state	zs_msg.c	/^zs_msg_pack_last_state (zmsg_t *output, uint64_t last_state) $/;"	f
+zs_msg_pack_request_files	zs_msg.c	/^zs_msg_pack_request_files (zmsg_t *output, zlist_t *fpaths)$/;"	f
+zs_msg_pack_update	zs_msg.c	/^zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *fmetadata) $/;"	f
+zs_msg_set_chunk	zs_msg.c	/^zs_msg_set_chunk (zs_msg_t *self, zframe_t *chunk)$/;"	f
+zs_msg_set_credit	zs_msg.c	/^zs_msg_set_credit (zs_msg_t *self, uint64_t credit)$/;"	f
+zs_msg_set_file_path	zs_msg.c	/^zs_msg_set_file_path (zs_msg_t *self, char *format, ...)$/;"	f
+zs_msg_set_fmetadata	zs_msg.c	/^zs_msg_set_fmetadata (zs_msg_t *self, zlist_t *fmetadata) $/;"	f
+zs_msg_set_fpaths	zs_msg.c	/^zs_msg_set_fpaths (zs_msg_t *self, zlist_t *fpaths)$/;"	f
+zs_msg_set_offset	zs_msg.c	/^zs_msg_set_offset (zs_msg_t *self, uint64_t offset)$/;"	f
+zs_msg_set_sequence	zs_msg.c	/^zs_msg_set_sequence (zs_msg_t *self, uint64_t sequence)$/;"	f
+zs_msg_set_state	zs_msg.c	/^zs_msg_set_state (zs_msg_t *self, uint64_t state) $/;"	f
+zs_msg_set_uuid	zs_msg.c	/^zs_msg_set_uuid (zs_msg_t *self, byte *uuid) $/;"	f
+zs_msg_test	zs_msg.c	/^zs_msg_test () $/;"	f
+zs_msg_unpack	zs_msg.c	/^zs_msg_unpack (zmsg_t *input) $/;"	f
+zs_msg_uuid	zs_msg.c	/^zs_msg_uuid (zs_msg_t *self) $/;"	f
+zsync_agent_chunk	zsync_agent.c	/^zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset) $/;"	f
+zsync_agent_ctx	zsync_agent.c	/^zsync_agent_ctx (zsync_agent_t *self)$/;"	f
+zsync_agent_current_state	zsync_agent.c	/^zsync_agent_current_state (zsync_agent_t *self)$/;"	f
+zsync_agent_destroy	zsync_agent.c	/^zsync_agent_destroy (zsync_agent_t **self_p)$/;"	f
+zsync_agent_new	zsync_agent.c	/^zsync_agent_new ()$/;"	f
+zsync_agent_pass_chunk	zsync_agent.c	/^zsync_agent_pass_chunk (zsync_agent_t *self, byte *chunk, char *path, uint64_t sequence, uint64_t offset)$/;"	f
+zsync_agent_pass_update	zsync_agent.c	/^void zsync_agent_pass_update (zsync_agent_t *self, char *sender, zlist_t* fmetadata)$/;"	f
+zsync_agent_running	zsync_agent.c	/^zsync_agent_running (zsync_agent_t *self)$/;"	f
+zsync_agent_send_abort	zsync_agent.c	/^zsync_agent_send_abort (zsync_agent_t *self, char* fileToAbort)$/;"	f
+zsync_agent_send_request_files	zsync_agent.c	/^zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list)$/;"	f
+zsync_agent_send_update	zsync_agent.c	/^zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)$/;"	f
+zsync_agent_set_get_chunk	zsync_agent.c	/^zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr)$/;"	f
+zsync_agent_set_get_current_state	zsync_agent.c	/^zsync_agent_set_get_current_state (zsync_agent_t *self, void *ptr)$/;"	f
+zsync_agent_set_get_update	zsync_agent.c	/^zsync_agent_set_get_update (zsync_agent_t *self, void *ptr)$/;"	f
+zsync_agent_set_pass_chunk	zsync_agent.c	/^zsync_agent_set_pass_chunk (zsync_agent_t *self, void *ptr)$/;"	f
+zsync_agent_set_pass_update	zsync_agent.c	/^zsync_agent_set_pass_update (zsync_agent_t *self, void *ptr)$/;"	f
+zsync_agent_start	zsync_agent.c	/^zsync_agent_start (zsync_agent_t *self)$/;"	f
+zsync_agent_stop	zsync_agent.c	/^zsync_agent_stop (zsync_agent_t *self)$/;"	f
+zsync_agent_test	zsync_agent.c	/^zsync_agent_test ()$/;"	f
+zsync_agent_update	zsync_agent.c	/^zsync_agent_update (zsync_agent_t *self, uint64_t from_state)$/;"	f
+zsync_agent_zyre	zsync_agent.c	/^zsync_agent_zyre (zsync_agent_t *self)$/;"	f
+zsync_ftfile_destroy	zsync_ftmanager.c	/^zsync_ftfile_destroy (zsync_ftfile_t **self_p)$/;"	f
+zsync_ftfile_new	zsync_ftmanager.c	/^zsync_ftfile_new ()$/;"	f
+zsync_ftfile_t	zsync_ftmanager.c	/^typedef struct _zsync_ftfile_t zsync_ftfile_t;$/;"	t	typeref:struct:_zsync_ftfile_t	file:
+zsync_ftmanager_engine	zsync_ftmanager.c	/^zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)$/;"	f
+zsync_ftrequest_destroy	zsync_ftmanager.c	/^zsync_ftrequest_destroy (zsync_ftrequest_t **self_p)$/;"	f
+zsync_ftrequest_new	zsync_ftmanager.c	/^zsync_ftrequest_new ()$/;"	f
+zsync_ftrequest_t	zsync_ftmanager.c	/^typedef struct _zsync_ftrequest_t zsync_ftrequest_t;$/;"	t	typeref:struct:_zsync_ftrequest_t	file:
+zsync_node_destroy	zsync_node.c	/^zsync_node_destroy (zsync_node_t **self_p)$/;"	f	file:
+zsync_node_engine	zsync_node.c	/^zsync_node_engine (void *args)$/;"	f
+zsync_node_new	zsync_node.c	/^zsync_node_new ()$/;"	f	file:
+zsync_node_peers_lookup	zsync_node.c	/^zsync_node_peers_lookup (zsync_node_t *self, char *uuid)$/;"	f	file:
+zsync_node_recv_from_zyre	zsync_node.c	/^zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)$/;"	f	file:
+zsync_node_save_peers	zsync_node.c	/^zsync_node_save_peers (zsync_node_t *self)$/;"	f	file:
+zsync_node_test	zsync_node.c	/^zsync_node_test () $/;"	f
+zsync_peer_destroy	zsync_peer.c	/^zsync_peer_destroy (zsync_peer_t **self_p)$/;"	f
+zsync_peer_new	zsync_peer.c	/^zsync_peer_new (char *uuid, uint64_t state)$/;"	f
+zsync_peer_set_connected	zsync_peer.c	/^zsync_peer_set_connected (zsync_peer_t *self, bool connected)$/;"	f
+zsync_peer_set_ready	zsync_peer.c	/^zsync_peer_set_ready (zsync_peer_t *self, bool ready)$/;"	f
+zsync_peer_set_state	zsync_peer.c	/^zsync_peer_set_state (zsync_peer_t *self, uint64_t state)$/;"	f
+zsync_peer_state	zsync_peer.c	/^zsync_peer_state (zsync_peer_t *self)$/;"	f
+zsync_peer_uuid	zsync_peer.c	/^zsync_peer_uuid (zsync_peer_t *self)$/;"	f
+zyre	zsync_agent.c	/^    zyre_t *zyre;$/;"	m	struct:_zsync_agent_t	file:
+zyre	zsync_node.c	/^    zyre_t *zyre;               \/\/ Zyre$/;"	m	struct:_zsync_node_t	file:
+zyre_peers	zsync_node.c	/^    zhash_t *zyre_peers;        \/\/ mapping of zyre id to zsync peers$/;"	m	struct:_zsync_node_t	file:

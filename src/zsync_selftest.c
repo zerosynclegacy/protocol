@@ -28,7 +28,7 @@ zsync_agent_t *agent;
 void
 pass_update (char *sender, zlist_t *fmetadata) 
 {
-    printf ("PASS_UPDATE from %s: %"PRId64"\n", sender, zlist_size (fmetadata));
+    printf ("[ST] PASS_UPDATE from %s: %"PRId64"\n", sender, zlist_size (fmetadata));
     zlist_t *paths = zlist_new ();
     zlist_append (paths, "abc.txt");
     zlist_append (paths, "def.txt");
@@ -40,7 +40,7 @@ void
 pass_chunk (byte *chunk, char *path, uint64_t sequence, uint64_t offset)
 {
     // save chunk
-    printf ("PASS_CHUNK %s, %"PRId64", %"PRId64, path, sequence, offset);
+    printf ("[ST] PASS_CHUNK %s, %"PRId64", %"PRId64, path, sequence, offset);
 }
 
 zlist_t *

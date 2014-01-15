@@ -42,7 +42,12 @@ struct _zsync_agent_t {
     // Zyre connection
     zyre_t *zyre;
 
+    // Pipe to node
+    void *pipe;
+
     bool running;
+
+    char *channel;
 
     // Passes a list with updated files
     void (*pass_update)(char *sender, zlist_t *file_metadata);
@@ -69,12 +74,13 @@ zsync_agent_new ()
 {
     zsync_agent_t *self = (zsync_agent_t*) zmalloc (sizeof (zsync_agent_t));
     
-    self->ctx = zctx_new();
+    self->ctx = zctx_new ();
     assert (self->ctx);
-    self->zyre = zyre_new(self->ctx);
+    self->zyre = zyre_new (self->ctx);
     assert (self->zyre);
+    self->channel = "ZSYNC";
     self->running = false;
-
+    
     return self;
 }
 
@@ -89,7 +95,7 @@ zsync_agent_destroy (zsync_agent_t **self_p)
         zsync_agent_t *self = *self_p;
         
         // stop and destroy zyre
-        zyre_stop (self->zyre);
+        zyre_stop (self->zyre); 
         zyre_destroy (&self->zyre);
 
         free(self);
@@ -110,8 +116,7 @@ zsync_agent_start (zsync_agent_t *self)
         self->get_chunk) {
       
         zyre_start (self->zyre);
-        int rc = zthread_new (zsync_node_engine, self);
-        assert (rc == 0);
+        self->pipe = zthread_fork (self->ctx, zsync_node_engine, self);
         self->running = true;
         return 0;
     }
@@ -127,6 +132,7 @@ zsync_agent_stop (zsync_agent_t *self)
 {
     assert (self);
     self->running = false;
+    zyre_stop (self->zyre);
 }
 
 // --------------------------------------------------------------------------
@@ -186,10 +192,11 @@ zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr)
 void 
 zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list)
 {
-    zmsg_t *msg = zmsg_new();
+    zmsg_t *msg = zmsg_new ();
     // give the Request_files_command to the protocol
     if (zs_msg_pack_request_files (msg, list)) {
-        zyre_whisper (self->zyre, sender, &msg);
+        zmsg_pushstr (msg, "%s", sender);
+        zmsg_send (&msg, self->pipe);
         printf ("Requested files sent.\n;");
     }
 }
@@ -200,10 +207,11 @@ zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list
 void
 zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 {
-    zmsg_t *msg = zmsg_new();
+    zmsg_t *msg = zmsg_new ();
     // give the send_update_command to the protocol
     if (zs_msg_pack_update (msg, state, list)) {
-        zyre_shout (self->zyre, "", &msg);
+        zmsg_pushstr (msg, "%s", "SHOUT");
+        zmsg_send (&msg, self->pipe);
         printf ("Update sent.\n");    
     }
 }
@@ -212,13 +220,14 @@ zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 // Sends ABORT message to the protocol
 
 void
-zsync_agent_send_abort (zsync_agent_t *self, char* fileToAbort)
+zsync_agent_send_abort (zsync_agent_t *self, char *sender, char* fileToAbort)
 {
     zmsg_t *msg = zmsg_new();
     // TODO: Implement the filePath to send_abort in protocol
     // give the send_abort_command to the protocol
     if (zs_msg_pack_abort (msg)) { 
-        zyre_whisper(self->zyre, "", &msg);
+        zmsg_pushstr (msg, "%s", sender);
+        zmsg_send (&msg, self->pipe);
         printf("Caution, file transfer aborted!!!\n");
     }
 }
@@ -246,6 +255,16 @@ zsync_agent_zyre (zsync_agent_t *self)
 }
 
 // --------------------------------------------------------------------------
+// Returns the channel the agent joins
+
+char *
+zsync_agent_channel (zsync_agent_t *self)
+{
+    assert (self);
+    return self->channel;
+}
+
+// --------------------------------------------------------------------------
 // Returns whether the agents has been started or not
 
 bool
@@ -254,6 +273,7 @@ zsync_agent_running (zsync_agent_t *self)
     assert (self);
     return self->running;
 }
+
 
 
 // --------------------------------------------------------------------------
