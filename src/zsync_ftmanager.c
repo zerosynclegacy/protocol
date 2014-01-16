@@ -78,6 +78,7 @@ zsync_ftrequest_t *
 zsync_ftrequest_new ()
 {
     zsync_ftrequest_t *self = (zsync_ftrequest_t *) zmalloc (sizeof (zsync_ftrequest_t));
+    self->requested_files = zlist_new ();
     return self;
 }
 
@@ -105,6 +106,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
     printf("[FT] started\n");
     while (zsync_agent_running (agent)) {
         zmsg_t *msg = zmsg_recv (pipe);
+        printf("[FT] recv\n");
         
         // First frame is sender 
         char *sender = zmsg_popstr (msg);
@@ -115,27 +117,30 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             zhash_insert (peer_requests, sender, ftrequest);
         }
 
-        // Get command
+        // Second frame is command
         char *cmd = zmsg_popstr (msg);
-        if (strcmp (cmd, "REQUEST")) {
+        if (streq (cmd, "REQUEST")) {
             char *fpath = zmsg_popstr (msg);
             while (fpath) {
                 // TODO check for duplicates
                 zlist_append (ftrequest->requested_files, fpath);
+                printf("[FT] added %s\n", fpath);
                 fpath = zmsg_popstr (msg);
             }
         }
         else 
-        if (strcmp (cmd, "CREDIT")) {
+        if (streq (cmd, "CREDIT")) {
             uint64_t credit;
             sscanf (zmsg_popstr (msg), "%"SCNd64, &credit);
             ftrequest->credit += credit;
+            printf("[FT] credit %"PRId64"\n", credit);
         }
         else 
-        if (strcmp (cmd, "ABORT")) {
-             printf("[FT] FT_ABORT");
+        if (streq (cmd, "ABORT")) {
+            printf("[FT] FT_ABORT");
         }
        
+        printf("[FT] LOOKUP\n");
         // Search for file transfer request
         // Transfer one chunk then proceed 
         zlist_t *keys = zhash_keys (peer_requests);
@@ -143,7 +148,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
         while (key) {
             zsync_ftrequest_t *request =  zhash_lookup (peer_requests, key);
             int request_count = zlist_size (request->requested_files);
-            
+            printf("[FT] requests (%d), credit(%"PRId64")\n", request_count, request->credit);
             if (request_count > 0 && request->credit > CHUNK_SIZE) {
                 zsync_ftfile_t *file = zlist_first (request->requested_files);
                 byte *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
@@ -153,8 +158,8 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                     zframe_t *data = zframe_new (chunk, CHUNK_SIZE);
                     zmsg_t *msg = zmsg_new ();
                     // First frame sender uuid
-                    zmsg_pushstr (msg, "%s", key);
                     rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
+                    zmsg_pushstr (msg, "%s", key);
                     assert (rc == 0);
                     zmsg_send (&msg, pipe); // Forward chunk to node
                 } 

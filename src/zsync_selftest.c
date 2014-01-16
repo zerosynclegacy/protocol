@@ -95,9 +95,8 @@ void test_integrate_components ()
 
     while (zsync_agent_running (agent)) {
         zclock_sleep (250);
-        zclock_sleep (10000);
-        zsync_agent_stop (agent);
     }
+    zsync_agent_stop (agent);
     printf ("STOPPED\n");
 
     zsync_agent_destroy (&agent);

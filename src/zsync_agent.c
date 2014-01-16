@@ -194,10 +194,11 @@ zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list
 {
     zmsg_t *msg = zmsg_new ();
     // give the Request_files_command to the protocol
-    if (zs_msg_pack_request_files (msg, list)) {
+    int rc = zs_msg_pack_request_files (msg, list);
+    printf("[AG] S_Request_Files %d\n", rc);
+    if (rc == 0) {
         zmsg_pushstr (msg, "%s", sender);
         zmsg_send (&msg, self->pipe);
-        printf ("Requested files sent.\n;");
     }
 }
 
@@ -222,7 +223,7 @@ zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 void
 zsync_agent_send_abort (zsync_agent_t *self, char *sender, char* fileToAbort)
 {
-    zmsg_t *msg = zmsg_new();
+    zmsg_t *msg = zmsg_new ();
     // TODO: Implement the filePath to send_abort in protocol
     // give the send_abort_command to the protocol
     if (zs_msg_pack_abort (msg)) { 
