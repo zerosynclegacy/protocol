@@ -69,6 +69,21 @@ get_update (uint64_t from_state)
 byte *
 get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 {
+    printf("[ST] GET CHUNK\n");
+    if (zsys_file_exists ("test.txt")) {
+        printf("[ST] File exist\n");
+        zfile_t *file = zfile_new (".", "test.txt");
+        if (zfile_is_readable (file)) {
+            printf("[ST] File read\n");
+            zfile_input (file); 
+            zchunk_t *chunk = zfile_read (file, chunk_size, offset);
+            zfile_destroy (&file);
+            byte *data = zchunk_data (chunk);
+            return data;
+        }
+    } else {
+        printf("[ST] File not exist\n");
+    }
     return NULL;
 }
 

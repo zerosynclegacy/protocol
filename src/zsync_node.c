@@ -192,7 +192,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             sender = zhash_lookup (self->zyre_peers, zyre_sender);
             zyre_in = zyre_event_msg (event);
             zs_msg_t *msg = zs_msg_unpack (zyre_in);
-            
+
             switch (zs_msg_get_cmd (msg)) {
                 case ZS_CMD_GREET:
                     // 1. Get perm uuid
@@ -262,6 +262,8 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     zmsg_send (&fm_msg, self->fmpipe);
                     break;
                 case ZS_CMD_GIVE_CREDIT:
+                    printf("[ND] GIVE CREDIT\n");
+                    // TODO fixme
                     fm_msg = zmsg_new ();
                     zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
                     zmsg_addstr (fm_msg, "%s", "CREDIT");
@@ -269,7 +271,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     zmsg_send (&fm_msg, self->fmpipe);
                     break;
                 case ZS_CMD_SEND_CHUNK:
-                    printf("[ND] SEND_CHUNK (RCV)");
+                    printf("[ND] SEND_CHUNK (RCV)\n");
                     byte *chunk = zframe_data (zs_msg_get_chunk (msg));
                     char *path = zs_msg_get_file_path (msg);
                     uint64_t seq = zs_msg_get_sequence (msg);
@@ -288,6 +290,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             zs_msg_destroy (&msg);
             break;
         default:
+            printf("[ND] Error command not found\n");
             break;
     }
     zyre_event_destroy (&event);
