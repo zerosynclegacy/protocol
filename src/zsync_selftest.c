@@ -32,7 +32,8 @@ pass_update (char *sender, zlist_t *fmetadata)
     zlist_t *paths = zlist_new ();
     zlist_append (paths, "abc.txt");
     zlist_append (paths, "def.txt");
-    zsync_agent_send_request_files (agent, sender, paths);
+    zlist_append (paths, "ghj.txt");
+    zsync_agent_send_request_files (agent, sender, paths, 5000000);
 }
 
 
@@ -40,7 +41,13 @@ void
 pass_chunk (byte *chunk, char *path, uint64_t sequence, uint64_t offset)
 {
     // save chunk
-    printf ("[ST] PASS_CHUNK %s, %"PRId64", %"PRId64, path, sequence, offset);
+    printf ("[ST] PASS_CHUNK %s, %"PRId64", %"PRId64"\n", path, sequence, offset);
+    zfile_t *file = zfile_new (".", path);
+    zfile_output (file);
+    FILE *handle = zfile_handle (file);
+    fseek (handle, offset, SEEK_SET);
+    fwrite (chunk, 30000, 1, handle);
+    zfile_destroy (&file);
 }
 
 zlist_t *
@@ -70,19 +77,24 @@ byte *
 get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 {
     printf("[ST] GET CHUNK\n");
-    if (zsys_file_exists ("test.txt")) {
+    if (zsys_file_exists (path)) {
         printf("[ST] File exist\n");
-        zfile_t *file = zfile_new (".", "test.txt");
+        zfile_t *file = zfile_new (".", path);
         if (zfile_is_readable (file)) {
             printf("[ST] File read\n");
             zfile_input (file); 
-            zchunk_t *chunk = zfile_read (file, chunk_size, offset);
-            zfile_destroy (&file);
-            byte *data = zchunk_data (chunk);
-            return data;
+            if (zfile_size (path) > offset) {
+                zchunk_t *chunk = zfile_read (file, chunk_size, offset);
+                zfile_destroy (&file);
+                byte *data = zchunk_data (chunk);
+                return data;
+            }
+            else {
+                return NULL;
+            }
         }
     } else {
-        printf("[ST] File not exist\n");
+        printf("[ST] File %s not exist\n", path);
     }
     return NULL;
 }

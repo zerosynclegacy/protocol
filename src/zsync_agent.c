@@ -190,7 +190,7 @@ zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr)
 // send_request_files for the protocol
 
 void 
-zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list)
+zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list, uint64_t total_bytes)
 {
     zmsg_t *msg = zmsg_new ();
     // give the Request_files_command to the protocol

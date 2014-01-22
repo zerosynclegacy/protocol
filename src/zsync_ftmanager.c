@@ -80,6 +80,7 @@ zsync_ftrequest_new ()
 {
     zsync_ftrequest_t *self = (zsync_ftrequest_t *) zmalloc (sizeof (zsync_ftrequest_t));
     self->requested_files = zlist_new ();
+    self->credit = 0;
     return self;
 }
 
@@ -186,14 +187,10 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             zsync_ftrequest_t *request =  zhash_lookup (peer_requests, key);
             int request_count = zlist_size (request->requested_files);
             printf("[FT] requests (%d), credit(%"PRId64")\n", request_count, request->credit);
-            if (request_count > 0) {
-            // TODO Add proper credit mechanism. For now ignore!
-            // if (request_count > 0 && request->credit > CHUNK_SIZE) {
+            if (request_count > 0 && request->credit > CHUNK_SIZE) {
                 zsync_ftfile_t *file = zlist_first (request->requested_files);
                 byte *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
                 if (chunk) {
-                    file->sequence++;
-                    file->offset += CHUNK_SIZE;
                     zframe_t *data = zframe_new (chunk, CHUNK_SIZE);
                     zmsg_t *msg = zmsg_new ();
                     // First frame sender uuid
@@ -201,6 +198,9 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                     zmsg_pushstr (msg, "%s", key);
                     assert (rc == 0);
                     zmsg_send (&msg, pipe); // Forward chunk to node
+                    // Increment for next chunk
+                    file->sequence++;
+                    file->offset += CHUNK_SIZE;
                     printf("[FT] chunk send\n");
                 } 
                 else {

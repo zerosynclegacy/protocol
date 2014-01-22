@@ -48,7 +48,7 @@ void
     zsync_agent_stop (zsync_agent_t *self);
 
 void 
-    zsync_agent_send_request_files (zsync_agent_t *agent, char *sender, zlist_t *list);
+    zsync_agent_send_request_files (zsync_agent_t *agent, char *sender, zlist_t *list, uint64_t total_bytes);
 
 void 
     zsync_agent_send_update (zsync_agent_t *agent, uint64_t state, zlist_t *list);

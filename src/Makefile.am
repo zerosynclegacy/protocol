@@ -30,3 +30,7 @@ fileServer_SOURCES = fileTransferServer.c
 fileServer_LDADD = libzsync.la
 
 zsync_selftest_LDADD = libzsync.la
+
+generate-tags:
+	ctags *.c ~/workspace/zyre/src/*.c ~/workspace/czmq/src/*.c
+
