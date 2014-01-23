@@ -408,7 +408,8 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
     
     /* Append data frame */
     if (zmsg_append (output, &data_frame)) {
-           goto cleanup;
+        printf ("[ERROR] cannot append frame\n");            
+        goto cleanup;
     }
 
     /* Send frames */
@@ -416,6 +417,7 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
         
         /* Append the chunk frame */
         if (zmsg_append (output, &self->chunk)) {
+            printf ("[ERROR] cannot append frame\n");            
             goto cleanup;    
         }
         

@@ -48,13 +48,13 @@ void
     zsync_agent_stop (zsync_agent_t *self);
 
 void 
-    zsync_agent_send_request_files (zsync_agent_t *agent, char *sender, zlist_t *list);
+    zsync_agent_send_request_files (zsync_agent_t *agent, char *sender, zlist_t *list, uint64_t total_bytes);
 
 void 
     zsync_agent_send_update (zsync_agent_t *agent, uint64_t state, zlist_t *list);
 
 void 
-    zsync_agent_send_abort (zsync_agent_t *agent, char *fileToAbort);
+    zsync_agent_send_abort (zsync_agent_t *agent, char *sender, char *fileToAbort);
 
 // Sets the pass_update callback method
 void 
@@ -107,6 +107,10 @@ byte *
 // Returns whether the agents has been started or not
 bool
     zsync_agent_running (zsync_agent_t *self);
+
+// Returns the channel the agent joins
+char *
+    zsync_agent_channel (zsync_agent_t *self);
 
 // Selftest this class
 void
