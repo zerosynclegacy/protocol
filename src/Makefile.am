@@ -8,6 +8,7 @@ include_HEADERS = \
     ../include/zs_fmetadata.h \
     ../include/zsync_peer.h \
     ../include/zsync_ftmanager.h \
+    ../include/zsync_credit.h \
     ../include/zsync_node.h \
     ../include/zsync_agent.h
 
@@ -16,6 +17,7 @@ libzsync_la_SOURCES = \
     zs_fmetadata.c \
     zsync_peer.c \
     zsync_ftmanager.c \
+    zsync_credit.c \
     zsync_node.c \
     zsync_agent.c
 
