@@ -67,8 +67,8 @@ zsync_credit_destroy (zsync_credit_t **self_p)
     }
 }
 
-static void
-s_destroy_credit_item (void *data) 
+void
+zsync_credit_destroy_item (void *data) 
 {
     zsync_credit_t * credit = (zsync_credit_t *) data;
     zsync_credit_destroy (&credit);        
@@ -96,7 +96,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
         if (!credit) {
            credit = zsync_credit_new ();
            zhash_insert (peer_credit, sender, credit);
-           zhash_freefn (peer_credit, sender, s_destroy_credit_item);
+           zhash_freefn (peer_credit, sender, zsync_credit_destroy_item);
         }
         // Second frame is command
         char *command = zmsg_popstr (msg);
