@@ -204,7 +204,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                     rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
                     assert (rc == 0);
                     // First frame sender uuid
-                    zmsg_pushstr (msg, "%s", key);
+                    zmsg_pushstr (msg, key);
                     zmsg_send (&msg, pipe); // Forward chunk to node
                     // Increment for next chunk
                     file->sequence++;

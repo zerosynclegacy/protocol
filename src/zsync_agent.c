@@ -197,9 +197,9 @@ zsync_agent_send_request_files (zsync_agent_t *self, char *sender, zlist_t *list
     int rc = zs_msg_pack_request_files (msg, list);
     printf("[AG] S_Request_Files %d\n", rc);
     if (rc == 0) {
-        zmsg_pushstr (msg, "%"PRId64, total_bytes);
-        zmsg_pushstr (msg, "%s", sender);
-        zmsg_pushstr (msg, "%s", "REQUEST");
+        zmsg_pushstrf (msg, "%"PRId64, total_bytes);
+        zmsg_pushstr (msg, sender);
+        zmsg_pushstr (msg, "REQUEST");
         zmsg_send (&msg, self->pipe);
     }
 }
@@ -213,7 +213,7 @@ zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
     zmsg_t *msg = zmsg_new ();
     // give the send_update_command to the protocol
     if (zs_msg_pack_update (msg, state, list)) {
-        zmsg_pushstr (msg, "%s", "UPDATE");
+        zmsg_pushstr (msg, "UPDATE");
         zmsg_send (&msg, self->pipe);
         printf ("Update sent.\n");    
     }
@@ -229,7 +229,7 @@ zsync_agent_send_abort (zsync_agent_t *self, char *sender, char* fileToAbort)
     // TODO: Implement the filePath to send_abort in protocol
     // give the send_abort_command to the protocol
     if (zs_msg_pack_abort (msg)) { 
-        zmsg_pushstr (msg, "%s", sender);
+        zmsg_pushstr (msg, sender);
         zmsg_send (&msg, self->pipe);
         printf("Caution, file transfer aborted!!!\n");
     }

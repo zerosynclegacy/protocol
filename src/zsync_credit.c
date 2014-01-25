@@ -68,7 +68,7 @@ zsync_credit_destroy (zsync_credit_t **self_p)
 }
 
 void
-zsync_credit_destroy_item (void *data) 
+s_destroy_credit_item (void *data) 
 {
     zsync_credit_t * credit = (zsync_credit_t *) data;
     zsync_credit_destroy (&credit);        
@@ -96,7 +96,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
         if (!credit) {
            credit = zsync_credit_new ();
            zhash_insert (peer_credit, sender, credit);
-           zhash_freefn (peer_credit, sender, zsync_credit_destroy_item);
+           zhash_freefn (peer_credit, sender, s_destroy_credit_item);
         }
         // Second frame is command
         char *command = zmsg_popstr (msg);
@@ -127,7 +127,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
                 zmsg_t *cmsg = zmsg_new ();
                 rc = zs_msg_pack_give_credit (cmsg,  (uint16_t) chunks_left * CHUNK_SIZE);
                 assert (rc == 0);
-                zmsg_pushstr (cmsg, "%s", sender);
+                zmsg_pushstr (cmsg, sender);
                 zmsg_send (&cmsg, pipe);
                 total_credit -= (chunks_left * CHUNK_SIZE);
             }

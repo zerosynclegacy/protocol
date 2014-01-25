@@ -253,11 +253,11 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     printf ("[ND] REQUEST FILES\n");
                     fpaths = zs_msg_fpaths (msg);
                     zmsg_t *fm_msg = zmsg_new ();
-                    zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
-                    zmsg_addstr (fm_msg, "%s", "REQUEST");
+                    zmsg_addstr (fm_msg, zsync_peer_uuid (sender));
+                    zmsg_addstr (fm_msg, "REQUEST");
                     char *fpath = zs_msg_fpaths_first (msg);
                     while (fpath) {
-                        zmsg_addstr (fm_msg, "%s", fpath);
+                        zmsg_addstr (fm_msg, fpath);
                         printf("[ND] %s\n", fpath);
                         fpath = zs_msg_fpaths_next (msg);
                     }
@@ -266,9 +266,9 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                 case ZS_CMD_GIVE_CREDIT:
                     printf("[ND] GIVE CREDIT\n");
                     fm_msg = zmsg_new ();
-                    zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
-                    zmsg_addstr (fm_msg, "%s", "CREDIT");
-                    zmsg_addstr (fm_msg, "%"PRId64, zs_msg_get_credit (msg));
+                    zmsg_addstr (fm_msg, zsync_peer_uuid (sender));
+                    zmsg_addstr (fm_msg, "CREDIT");
+                    zmsg_addstrf (fm_msg, "%"PRId64, zs_msg_get_credit (msg));
                     zmsg_send (&fm_msg, self->file_pipe);
                     break;
                 case ZS_CMD_SEND_CHUNK:
@@ -276,9 +276,9 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     // Send receival to credit manager
                     uint64_t chunk_size = CHUNK_SIZE;
                     zmsg_t *cmsg = zmsg_new ();
-                    zmsg_addstr (cmsg, "%s", zsync_peer_uuid (sender));
-                    zmsg_addstr (cmsg, "%s", "UPDATE");
-                    zmsg_addstr (cmsg, "%"PRId64, chunk_size);
+                    zmsg_addstr (cmsg, zsync_peer_uuid (sender));
+                    zmsg_addstr (cmsg, "UPDATE");
+                    zmsg_addstrf (cmsg, "%"PRId64, chunk_size);
                     zmsg_send (&cmsg, self->credit_pipe);
                     // Pass chunk to client
                     byte *chunk = zframe_data (zs_msg_get_chunk (msg));
@@ -371,9 +371,9 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
                 zyre_whisper (self->zyre, zyre_uuid, &msg);
                 
                 zmsg_t *cmsg = zmsg_new ();
-                zmsg_addstr (cmsg, "%s", sender);
-                zmsg_addstr (cmsg, "%s", "REQUEST");
-                zmsg_addstr (cmsg, "%s", total_bytes);
+                zmsg_addstr (cmsg, sender);
+                zmsg_addstr (cmsg, "REQUEST");
+                zmsg_addstr (cmsg, total_bytes);
                 zmsg_send (&cmsg, self->credit_pipe);
             }
             else
