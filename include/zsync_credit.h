@@ -1,5 +1,5 @@
 /* =========================================================================
-    zsync_ftmanager.h - File transfer manager
+    zsync_credit.h - Credit manager
 
    -------------------------------------------------------------------------
    Copyright (c) 2013 Kevin Sapper, Bernhard Finger
@@ -21,17 +21,15 @@
    =========================================================================
 */
 
-#ifndef __ZSYNC_FTMANAGER_H_INCLUDED__
-#define __ZSYNC_FTMANAGER_H_INCLUDED__
+#ifndef __ZSYNC_CREDIT_H_INCLUDED__
+#define __ZSYNC_CREDIT_H_INCLUDED__
  
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define CHUNK_SIZE 30000
-
 void
-    zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe);
+    zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe);
 
 #ifdef __cplusplus
 }

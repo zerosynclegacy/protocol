@@ -2,7 +2,7 @@
     zsync_ftmanager - File Transfer manager
 
    -------------------------------------------------------------------------
-   Copyright (c) 2013 Kevin Sapper, Bernhard Finger
+   Copyright (c) 2013 Kevin Sapper
    Copyright other contributors as noted in the AUTHORS file.
    
    This file is part of ZeroSync, see http://zerosync.org.
@@ -24,19 +24,16 @@
 /*
 @header
     ZeroSync file transfer manager
-    Holds a list of outstanding file transfers and credit for each peer.
-    Automatically sends chunks of data according the open file transfers.
 
-    A node is one instance on the ZeroSync network
+    Handles incoming file requests from peers and their credit approval.
+    Automatically sends chunks of data once a credit approval has been send.
+    Outstanding files are only transfered if peer has enough credit.
 @discuss
-    LOGGER into zyre_event.
     LOG message to LOG group on whisper and shout
 @end
 */
 
 #include "zsync_classes.h"
-
-#define CHUNK_SIZE 30000
 
 struct _zsync_ftfile_t {
     char *path;
@@ -91,6 +88,11 @@ zsync_ftrequest_destroy (zsync_ftrequest_t **self_p)
 
     if (*self_p) {
         zsync_ftrequest_t *self = *self_p;
+        zsync_ftfile_t *file = zlist_first (self->requested_files);
+        while (file) {
+            zsync_ftfile_destroy (&file);
+            file = zlist_next (self->requested_files);
+        }
         zlist_destroy (&self->requested_files);
 
         free (self);
@@ -98,9 +100,16 @@ zsync_ftrequest_destroy (zsync_ftrequest_t **self_p)
     }
 }
 
-// Returns true is there is still work left, otherwise false
+void
+zsync_ftmanager_destroy_item (void *data) 
+{
+    zsync_ftrequest_t * request = (zsync_ftrequest_t *) data;
+    zsync_ftrequest_destroy (&request);        
+}
+
+// Helper method that returns true is there is still work left, otherwise false
 static bool
-zsync_ftmanager_work_left (zhash_t *self) 
+s_work_left (zhash_t *self) 
 {
     assert (self);
     if (zhash_size (self) == 0)
@@ -132,7 +141,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
     while (zsync_agent_running (agent)) {
         // Proceed if there is still work to do and no message are in queue,
         // Otherwise wait for work
-        if (zsync_ftmanager_work_left (peer_requests)) {
+        if (s_work_left (peer_requests)) {
             printf("[FT] go into recv nowait\n");
             msg = zmsg_recv_nowait (pipe);
         } else {
@@ -149,6 +158,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             if (!ftrequest) {
                 ftrequest = zsync_ftrequest_new ();
                 zhash_insert (peer_requests, sender, ftrequest);
+                zhash_freefn (peer_requests, sender, zsync_ftmanager_destroy_item);
             }
 
             // Second frame is command
@@ -173,9 +183,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             if (streq (cmd, "ABORT")) {
                 printf("[FT] FT_ABORT");
             }
-        }
-        else {
-            printf("[FT] recv nowait\n");
+            zmsg_destroy (&msg);
         }
        
         printf("[FT] LOOKUP\n");
@@ -193,10 +201,10 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                 if (chunk) {
                     zframe_t *data = zframe_new (chunk, CHUNK_SIZE);
                     zmsg_t *msg = zmsg_new ();
-                    // First frame sender uuid
                     rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
-                    zmsg_pushstr (msg, "%s", key);
                     assert (rc == 0);
+                    // First frame sender uuid
+                    zmsg_pushstr (msg, key);
                     zmsg_send (&msg, pipe); // Forward chunk to node
                     // Increment for next chunk
                     file->sequence++;
