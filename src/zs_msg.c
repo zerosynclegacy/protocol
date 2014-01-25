@@ -814,8 +814,7 @@ zs_msg_get_file_path (zs_msg_t *self)
         return NULL;
 
     // copy string from struct 
-    char *path = malloc(strlen(self->file_path) * sizeof(char));
-    strcpy(path, self->file_path);
+    char *path = strdup (self->file_path);
     return path;
 }
 

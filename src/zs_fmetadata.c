@@ -117,8 +117,7 @@ zs_fmetadata_path (zs_fmetadata_t *self)
         return NULL;
 
     // copy string from struct 
-    char *path = malloc(strlen(self->path) * sizeof(char));
-    strcpy(path, self->path);
+    char *path = strdup (self->path);
     return path;
 }    
 
@@ -147,8 +146,7 @@ zs_fmetadata_renamed_path (zs_fmetadata_t *self)
         return NULL;
 
     // copy string from struct 
-    char *path = malloc(strlen(self->path_renamed) * sizeof(char));
-    strcpy(path, self->path_renamed);
+    char *path = strdup (self->path_renamed);
     return path;
 }    
 

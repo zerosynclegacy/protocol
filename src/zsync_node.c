@@ -41,7 +41,8 @@ struct _zsync_node_t {
     zctx_t *ctx;
     zyre_t *zyre;               // Zyre
     zsync_agent_t *agent;       // Zsync agent
-    void *fmpipe;               // file management pipe
+    void *credit_pipe;          // Pipe to credit manager
+    void *file_pipe;               // Pipe to file manager
     zuuid_t *own_uuid;          // uuid of this node
     zlist_t *peers;
     zhash_t *zyre_peers;        // mapping of zyre id to zsync peers
@@ -250,7 +251,6 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     break;
                 case ZS_CMD_REQUEST_FILES:
                     printf ("[ND] REQUEST FILES\n");
-                    // TODO add credit manager
                     fpaths = zs_msg_fpaths (msg);
                     zmsg_t *fm_msg = zmsg_new ();
                     zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
@@ -261,7 +261,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                         printf("[ND] %s\n", fpath);
                         fpath = zs_msg_fpaths_next (msg);
                     }
-                    zmsg_send (&fm_msg, self->fmpipe);
+                    zmsg_send (&fm_msg, self->file_pipe);
                     break;
                 case ZS_CMD_GIVE_CREDIT:
                     printf("[ND] GIVE CREDIT\n");
@@ -269,11 +269,18 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     zmsg_addstr (fm_msg, "%s", zsync_peer_uuid (sender));
                     zmsg_addstr (fm_msg, "%s", "CREDIT");
                     zmsg_addstr (fm_msg, "%"PRId64, zs_msg_get_credit (msg));
-                    zmsg_send (&fm_msg, self->fmpipe);
+                    zmsg_send (&fm_msg, self->file_pipe);
                     break;
                 case ZS_CMD_SEND_CHUNK:
                     printf("[ND] SEND_CHUNK (RCV)\n");
-                    // TODO add credit manager
+                    // Send receival to credit manager
+                    uint64_t chunk_size = CHUNK_SIZE;
+                    zmsg_t *cmsg = zmsg_new ();
+                    zmsg_addstr (cmsg, "%s", zsync_peer_uuid (sender));
+                    zmsg_addstr (cmsg, "%s", "UPDATE");
+                    zmsg_addstr (cmsg, "%"PRId64, chunk_size);
+                    zmsg_send (&cmsg, self->credit_pipe);
+                    // Pass chunk to client
                     byte *chunk = zframe_data (zs_msg_get_chunk (msg));
                     char *path = zs_msg_get_file_path (msg);
                     uint64_t seq = zs_msg_get_sequence (msg);
@@ -333,15 +340,20 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
     // Give time to interconnect
     zclock_sleep (250);
 
+    zpoller_t *poller = zpoller_new (zyre_socket (self->zyre), pipe, NULL);
+    
     // Create thread for file management
-    self->fmpipe = zthread_fork (self->ctx, zsync_ftmanager_engine, agent);
-
-    zpoller_t *poller = zpoller_new (zyre_socket (self->zyre), self->fmpipe, pipe, NULL);
+    self->file_pipe = zthread_fork (self->ctx, zsync_ftmanager_engine, agent);
+    zpoller_add (poller, self->file_pipe);
+    // Create thread for credit management
+    self->credit_pipe = zthread_fork (self->ctx, zsync_credit_manager_engine, agent);
+    zpoller_add (poller, self->credit_pipe);
 
     // Start receiving messages
     printf("[ND] started\n");
     while (zsync_agent_running (self->agent)) {
         void *which = zpoller_wait (poller, -1);
+        
         if (which == zyre_socket (self->zyre)) {
             zsync_node_recv_from_zyre (self, zyre_event_recv (self->zyre));
         } 
@@ -349,23 +361,42 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
         if (which == pipe) {
             printf("[ND] Recv Agent\n");
             zmsg_t *msg = zmsg_recv (pipe);
-            char *sender = zmsg_popstr (msg);
-            char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
-            if (zyre_uuid) {
-                printf("[ND] Recv Agent SHOUT %s ; %s\n", zyre_uuid, sender);
+            char *command = zmsg_popstr (msg);
+            if (streq (command, "REQUEST")) {
+                char *sender = zmsg_popstr (msg);
+                char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
+                char *total_bytes = zmsg_popstr (msg);
+                assert (zyre_uuid);
+                printf("[ND] Recv Agent WHISPER REQUEST %s ; %s\n", zyre_uuid, sender);
                 zyre_whisper (self->zyre, zyre_uuid, &msg);
+                
+                zmsg_t *cmsg = zmsg_new ();
+                zmsg_addstr (cmsg, "%s", sender);
+                zmsg_addstr (cmsg, "%s", "REQUEST");
+                zmsg_addstr (cmsg, "%s", total_bytes);
+                zmsg_send (&cmsg, self->credit_pipe);
             }
-            else {
-                printf("[ND] Recv Agent SHOUT %s ; %s\n", zyre_uuid, sender);
+            else
+            if (streq (command, "UPDATE")) {
+                printf("[ND] Recv Agent SHOUT UPDATE\n");
                 zyre_shout (self->zyre, zsync_agent_channel (self->agent), &msg);
             }
         }
         else
-        if (which == self->fmpipe) {
+        if (which == self->file_pipe) {
             printf("[ND] Recv FT Manager\n");
-            zmsg_t *msg = zmsg_recv (self->fmpipe);
+            zmsg_t *msg = zmsg_recv (self->file_pipe);
             char *sender = zmsg_popstr (msg);
             char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
+            zyre_whisper (self->zyre, zyre_uuid, &msg);
+        }
+        else
+        if (which == self->credit_pipe) {
+            printf("[ND] Recv Credit Manager\n");
+            zmsg_t *msg = zmsg_recv (self->credit_pipe);
+            char *sender = zmsg_popstr (msg);
+            char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
+            printf("[ND] Sender: %s, Zyre: %s\n", sender, zyre_uuid);
             zyre_whisper (self->zyre, zyre_uuid, &msg);
         }
     }
