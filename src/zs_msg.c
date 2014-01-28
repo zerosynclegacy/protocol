@@ -40,9 +40,7 @@
 
 struct _zs_msg_t {
     uint16_t signature;     // zs_msg signature
-    int cmd;                // zs_msg command
-    byte *needle;           // read/write pointer for serialization
-    byte *ceiling;          // valid upper limit for needle
+    uint8_t cmd;                // zs_msg command
     byte *uuid;             // own 16-byte uuid
     uint64_t state;
     uint64_t sequence;
@@ -62,93 +60,72 @@ struct _zs_msg_t {
 
 // Put a block to the frame
 #define PUT_BLOCK(host,size) { \
-    memcpy (self->needle, (host), size); \
-    self->needle += size; \
+    rc = zframe_put_block (data_frame, host, size); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Get a block from the frame
 #define GET_BLOCK(host,size) { \
-    if (self->needle + size > self->ceiling) \
-      goto malformed; \
-    memcpy ((host), self->needle, size); \
-    self->needle += size; \
+    rc = zframe_get_block (frame, host, size); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Put a 1-byte number to the frame
 #define PUT_NUMBER1(host) { \
-    *(byte *) self->needle = (host); \
-    self->needle++; \
+    rc = zframe_put_uint8 (data_frame, host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Put a 2-byte number to the frame
 #define PUT_NUMBER2(host) { \
-    self->needle [0] = (byte) (((host) >> 8) & 255); \
-    self->needle [1] = (byte) (((host)) & 255); \
-    self->needle += 2; \
+    rc = zframe_put_uint16 (data_frame, host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Put a 8-byte number to the frame
 #define PUT_NUMBER8(host) { \
-    self->needle [0] = (byte) (((host) >> 56) & 255); \
-    self->needle [1] = (byte) (((host) >> 48) & 255); \
-    self->needle [2] = (byte) (((host) >> 40) & 255); \
-    self->needle [3] = (byte) (((host) >> 32) & 255); \
-    self->needle [4] = (byte) (((host) >> 24) & 255); \
-    self->needle [5] = (byte) (((host) >> 16) & 255); \
-    self->needle [6] = (byte) (((host) >> 8) & 255); \
-    self->needle [7] = (byte) (((host)) & 255); \
-    self->needle += 8; \
+    rc = zframe_put_uint64 (data_frame, host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Get a 1-byte number from the frame
 #define GET_NUMBER1(host) { \
-    if (self->needle + 1 > self->ceiling) \
-      goto malformed; \
-    (host) = *(byte *) self->needle; \
-    self->needle++; \
+    rc = zframe_get_uint8 (frame, &host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Get a 2-byte number from the frame
 #define GET_NUMBER2(host) { \
-    if (self->needle + 2 > self->ceiling) \
-      goto malformed; \
-    (host) = ((uint16_t) (self->needle [0]) << 8) \
-    + (uint16_t) (self->needle [1]); \
-    self->needle += 2; \
+    rc = zframe_get_uint16 (frame, &host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Get a 8-byte number from the frame
 #define GET_NUMBER8(host) { \
-    if (self->needle + 8 > self->ceiling) \
-      goto malformed; \
-    (host) = ((uint64_t) (self->needle [0]) << 56) \
-    + ((uint64_t) (self->needle [1]) << 48) \
-    + ((uint64_t) (self->needle [2]) << 40) \
-    + ((uint64_t) (self->needle [3]) << 32) \
-    + ((uint64_t) (self->needle [4]) << 24) \
-    + ((uint64_t) (self->needle [5]) << 16) \
-    + ((uint64_t) (self->needle [6]) << 8) \
-    + (uint64_t) (self->needle [7]); \
-    self->needle += 8; \
+    rc = zframe_get_uint64 (frame, &host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Put a string to the frame
 #define PUT_STRING(host) { \
-    string_size = strlen (host); \
-    PUT_NUMBER2 (string_size); \
-    memcpy (self->needle, (host), string_size); \
-    self->needle += string_size; \
+    rc = zframe_put_string (data_frame, host); \
+    if (rc == -1) \
+        goto malformed; \
 }
 
 // Get a string from the frame
 #define GET_STRING(host) { \
-    GET_NUMBER2 (string_size); \
-    if (self->needle + string_size > (self->ceiling)) \
-      goto malformed; \
-    (host) = (char *) malloc (string_size + 1); \
-    memcpy ((host), self->needle, string_size); \
-    (host) [string_size] = 0; \
-    self->needle += string_size; \
+    host = zframe_get_string (frame); \
+    if (host == NULL) \
+        goto malformed; \
 }
 
 // --------------------------------------------------------------------------
@@ -218,15 +195,13 @@ zs_msg_unpack (zmsg_t *input)
     zframe_t *frame = NULL;
     uint64_t list_size;
     string_size_t string_size;
+    int rc = 0;
 
     // Receive data frame
     frame = zmsg_pop (input);
     if (!frame) {
         goto empty;
     }
-    // Set pointer to data begin and end
-    self->needle = zframe_data(frame);
-    self->ceiling = self->needle + zframe_size (frame);
     
     // Get and check protocol signature
     // silently ignore everything with wrong signature     
@@ -246,7 +221,7 @@ zs_msg_unpack (zmsg_t *input)
             case ZS_CMD_UPDATE:
                 GET_NUMBER8(self->state);
                 char *path, *path_renamed;
-                int operation;
+                uint8_t operation;
                 uint64_t timestamp, size, checksum;
                 // file meta data count
                 GET_NUMBER8(list_size);
@@ -310,7 +285,7 @@ zs_msg_unpack (zmsg_t *input)
     
     // Error handling
     malformed: 
-        printf ("[ERROR] malformed message '%d'\n", self->cmd);            
+        printf ("[ERROR] unpack malformed message '%d'\n", self->cmd);            
     empty:
         zframe_destroy (&frame);
         zs_msg_destroy (&self);
@@ -331,14 +306,12 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
    
     zs_msg_t *self = *self_p; 
     string_size_t string_size;
-    int frame_flags = 0;
+    int frame_flags = 0, rc = 0;
    
     // frame size appendix
-    frame_size += frame_size + 2 + 1;          //  Signature and command ID
+    frame_size += 2 + 1;
+    //  Signature and command ID
     zframe_t *data_frame = zframe_new (NULL, frame_size);
-    
-    self->needle = zframe_data (data_frame);  // Address of frame data
-    self->ceiling = self->needle + frame_size;
     
     /* Add data to frame */
     PUT_NUMBER2 (SIGNATURE);
@@ -429,7 +402,7 @@ zs_msg_pack (zs_msg_t **self_p, zmsg_t *output, size_t frame_size)
     return 0;
 
     malformed:
-        printf ("[ERROR] malformed message '%d'\n", self->cmd);            
+        printf ("[ERROR] pack malformed message '%d'\n", self->cmd);            
     cleanup:
         zframe_destroy (&data_frame);
         zs_msg_destroy (&self);
@@ -477,8 +450,8 @@ zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *fmetadata)
     frame_size += 8;       // 8-byte list size
     zs_fmetadata_t *filemeta_data = zs_msg_fmetadata_first (self);
     while (filemeta_data) {
-        frame_size += sizeof(string_size_t); // string size
-        frame_size += strlen(zs_fmetadata_path (filemeta_data)); // string length
+        frame_size += sizeof (string_size_t); // string size
+        frame_size += strlen (zs_fmetadata_path (filemeta_data)); // string length
         frame_size += 8;   // 8-byte time stamp
         frame_size += 1;   // 1-byte file operation
         switch (zs_fmetadata_operation (filemeta_data)) {
@@ -487,8 +460,8 @@ zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *fmetadata)
                 frame_size += 8; // 8-byte checksum
                 break;
             case ZS_FILE_OP_REN:
-                frame_size += sizeof(string_size_t); // string size
-                frame_size += strlen(zs_fmetadata_renamed_path (filemeta_data)); // string len
+                frame_size += sizeof (string_size_t); // string size
+                frame_size += strlen (zs_fmetadata_renamed_path (filemeta_data)); // string len
                 break;
             default:
                 break;
@@ -496,7 +469,6 @@ zs_msg_pack_update (zmsg_t *output, uint64_t state, zlist_t *fmetadata)
         // next list entry
         filemeta_data = zs_msg_fmetadata_next (self);
     }
-
     return zs_msg_pack (&self, output, frame_size); 
 }
 
@@ -841,7 +813,7 @@ zs_msg_get_offset (zs_msg_t *self)
 int 
 zs_msg_test () 
 {
-    printf("selftest zs_msg* \n");
+    printf("ZS_MSG: ");
 
     //@selftest
     /* 1. create zmq context */
@@ -869,9 +841,6 @@ zs_msg_test ()
     zuuid_t *r_uuid = zuuid_new ();
     zuuid_set (r_uuid, zs_msg_uuid (self));
     assert ( zuuid_eq (s_uuid, zuuid_data (r_uuid)));
-    printf("Command %d\n", zs_msg_get_cmd (self));
-    printf ("uuid %s\n", zuuid_str (r_uuid));
-    printf("state %"PRIx64"\n", state);
     zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self); // destry zs_msg
 
@@ -885,7 +854,6 @@ zs_msg_test ()
     msg = zmsg_recv (sink);
     self = zs_msg_unpack (msg);
     uint64_t last_state = zs_msg_get_state (self);
-    printf("last state %"PRIx64"\n", last_state);
     zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self); // destry zs_msg
     
@@ -898,13 +866,13 @@ zs_msg_test ()
     zs_fmetadata_set_size (fmetadata, 0x1533);
     zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
     zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
-    zlist_append(filemeta_list, fmetadata);
+    zlist_append (filemeta_list, fmetadata);
     zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
     zs_fmetadata_set_path (fmetadata2, "%s", "b.txt");
     zs_fmetadata_set_renamed_path (fmetadata2, "%s", "c.txt");
     zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_REN);
     zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
-    zlist_append(filemeta_list, fmetadata2);
+    zlist_append (filemeta_list, fmetadata2);
 
     zs_msg_pack_update (msg, 0xAB, filemeta_list);
     zmsg_send (&msg, sender);
@@ -914,8 +882,6 @@ zs_msg_test ()
     msg = zmsg_recv (sink);
     self = zs_msg_unpack (msg);
     fmetadata = zs_msg_fmetadata_first (self);
-    printf("Command %d\n", zs_msg_get_cmd (self));
-    printf("State %"PRIx64"\n", zs_msg_get_state (self));
     while (fmetadata) {
         char *path = zs_fmetadata_path (fmetadata);
         char *path_ren = NULL;
@@ -925,7 +891,6 @@ zs_msg_test ()
         uint64_t size = zs_fmetadata_size (fmetadata);
         uint64_t timestamp = zs_fmetadata_timestamp (fmetadata);
         uint64_t checksum = zs_fmetadata_checksum (fmetadata);
-        printf("%s %s %x %"PRIx64" %"PRIx64" %"PRIx64"\n", path, path_ren, operation, size, timestamp, checksum);
         
         free (path);
         fmetadata = zs_msg_fmetadata_next (self);
@@ -936,9 +901,9 @@ zs_msg_test ()
     /* [SEND] REQUEST FILES */
     msg = zmsg_new ();
     zlist_t *paths = zlist_new ();
-    zlist_append(paths, "test1.txt");
-    zlist_append(paths, "test2.txt");
-    zlist_append(paths, "test3.txt");
+    zlist_append (paths, "test1.txt");
+    zlist_append (paths, "test2.txt");
+    zlist_append (paths, "test3.txt");
 
     zs_msg_pack_request_files (msg, paths);
     zmsg_send (&msg, sender);
@@ -948,11 +913,10 @@ zs_msg_test ()
     /* [RECV] REQUEST FILES */
     msg = zmsg_recv (sink);
     self = zs_msg_unpack (msg);
-    printf("Command %d\n", zs_msg_get_cmd (self));
     zs_msg_fpaths (self);
     char *path = zs_msg_fpaths_first (self);
     while (path) {
-        printf("%s\n", path);
+        // TODO asserts
         // next
         path = zs_msg_fpaths_next (self);
     }
@@ -962,14 +926,13 @@ zs_msg_test ()
 
     /* [SEND] ABORT */
     msg = zmsg_new ();
-    zs_msg_pack_abort(msg);
+    zs_msg_pack_abort (msg);
     zmsg_send (&msg, sender);
     zmsg_destroy (&msg);    // destroy zmsg
 
     /* [RECV] NO UPDATE */
     msg = zmsg_recv (sink);
     self = zs_msg_unpack (msg);
-    printf("Command %d\n", zs_msg_get_cmd (self));
     // cleanup
     zmsg_destroy (&msg);    // destroy zmsg
     zs_msg_destroy (&self);
@@ -980,7 +943,7 @@ zs_msg_test ()
     zmq_ctx_destroy (context);
     // @end
 
-    printf("OK\n");
+    printf ("OK\n");
     return 0;
 }
 

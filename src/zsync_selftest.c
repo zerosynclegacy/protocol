@@ -107,7 +107,7 @@ get_current_state ()
 
 void test_integrate_components ()
 {
-    printf ("selftest integration* \n");
+    printf ("Integration Test: ");
 
     agent = zsync_agent_new ();
     zsync_agent_set_pass_update (agent, pass_update);
@@ -124,7 +124,6 @@ void test_integrate_components ()
         zclock_sleep (250);
     }
     zsync_agent_stop (agent);
-    printf ("STOPPED\n");
 
     zsync_agent_destroy (&agent);
     
@@ -135,9 +134,9 @@ int
 main (int argc, char *argv [])
 {
     printf("Running self tests...\n");
-    zs_msg_test();
+    zs_msg_test ();
 //    zsync_node_test ();
-    zsync_agent_test();
+    zsync_agent_test ();
     test_integrate_components ();
     printf("Tests passed OK\n");
 }
