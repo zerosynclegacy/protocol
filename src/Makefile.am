@@ -4,6 +4,7 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA =libzsync.pc
 
 include_HEADERS = \
+    ../include/zsync.h \
     ../include/zs_msg.h \
     ../include/zs_fmetadata.h \
     ../include/zsync_peer.h \

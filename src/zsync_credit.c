@@ -88,7 +88,6 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
         msg = zmsg_recv (pipe);
         assert (msg);
          
-        printf("[CR] recv\n");
         // First frame is sender
         char *sender = zmsg_popstr (msg);
         // Get credit information for sender
@@ -103,7 +102,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
         if (streq (command, "REQUEST")) {
             uint64_t req_bytes;
             sscanf (zmsg_popstr (msg), "%"SCNd64, &req_bytes);
-            printf("[CR] request %"PRId64"\n", req_bytes);
+            printf("[CR] [RECV] request %"PRId64"\n", req_bytes);
             credit->req_bytes += req_bytes;
         }
         else
@@ -111,7 +110,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
             uint64_t recv_bytes; 
             sscanf (zmsg_popstr (msg), "%"SCNd64, &recv_bytes);
             credit->recv_bytes -= recv_bytes;
-            printf("[CR] update %"PRId64"\n", recv_bytes);
+            printf("[CR] [RECV] update %"PRId64"\n", recv_bytes);
             total_credit += recv_bytes;
         }
         zmsg_destroy (&msg);
@@ -125,11 +124,13 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
                     chunks_left = 10;                   
                 }
                 zmsg_t *cmsg = zmsg_new ();
-                rc = zs_msg_pack_give_credit (cmsg,  (uint16_t) chunks_left * CHUNK_SIZE);
+                uint64_t credit = chunks_left * CHUNK_SIZE;
+                rc = zs_msg_pack_give_credit (cmsg, credit);
                 assert (rc == 0);
                 zmsg_pushstr (cmsg, sender);
                 zmsg_send (&cmsg, pipe);
-                total_credit -= (chunks_left * CHUNK_SIZE);
+                total_credit -= credit;
+                printf("[CR] [SEND] credit: %"PRId64", to %s\n", credit, sender);
             }
         }
     }

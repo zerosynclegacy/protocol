@@ -90,7 +90,7 @@ void
 
 // Passes chunk of a file
 void
-    zsync_agent_pass_chunk (zsync_agent_t *self, byte *chunk, char *path, uint64_t sequence, uint64_t offset);
+    zsync_agent_pass_chunk (zsync_agent_t *self, zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset);
 
 // Gets the current state
 uint64_t
@@ -101,7 +101,7 @@ zlist_t *
     zsync_agent_update (zsync_agent_t *self, uint64_t from_state);
 
 // Gets a list of updates starting by the from state to the current state
-byte *
+zchunk_t *
     zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset);
 
 // Returns whether the agents has been started or not

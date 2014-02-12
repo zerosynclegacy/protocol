@@ -38,16 +38,15 @@ pass_update (char *sender, zlist_t *fmetadata)
 
 
 void 
-pass_chunk (byte *chunk, char *path, uint64_t sequence, uint64_t offset)
+pass_chunk (zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset)
 {
     // save chunk
-    printf ("[ST] PASS_CHUNK %s, %"PRId64", %"PRId64"\n", path, sequence, offset);
-    zfile_t *file = zfile_new (".", path);
-    zfile_output (file);
-    FILE *handle = zfile_handle (file);
-    fseek (handle, offset, SEEK_SET);
-    fwrite (chunk, 30000, 1, handle);
-    zfile_destroy (&file);
+    printf ("[ST] PASS_CHUNK %s, %"PRId64", %"PRId64", %"PRId64"\n", path, sequence, zchunk_size (chunk), offset);
+    zfile_t *file = zfile_new(".", path);
+    zfile_output(file);
+    zfile_write(file, chunk, offset);
+    zfile_close(file);
+    zfile_destroy(&file);
 }
 
 zlist_t *
@@ -73,7 +72,7 @@ get_update (uint64_t from_state)
 
 // Gets the current state
 
-byte *
+zchunk_t *
 get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 {
     printf("[ST] GET CHUNK\n");
@@ -86,8 +85,7 @@ get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
             if (zfile_size (path) > offset) {
                 zchunk_t *chunk = zfile_read (file, chunk_size, offset);
                 zfile_destroy (&file);
-                byte *data = zchunk_data (chunk);
-                return data;
+                return chunk;
             }
             else {
                 return NULL;
@@ -102,12 +100,12 @@ get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 uint64_t
 get_current_state () 
 {
-    return 0x66;
+    return 0x0;
 }
 
 void test_integrate_components ()
 {
-    printf ("selftest integration* \n");
+    printf ("Integration Test: ");
 
     agent = zsync_agent_new ();
     zsync_agent_set_pass_update (agent, pass_update);
@@ -124,7 +122,6 @@ void test_integrate_components ()
         zclock_sleep (250);
     }
     zsync_agent_stop (agent);
-    printf ("STOPPED\n");
 
     zsync_agent_destroy (&agent);
     
@@ -135,9 +132,9 @@ int
 main (int argc, char *argv [])
 {
     printf("Running self tests...\n");
-    zs_msg_test();
+    zs_msg_test ();
 //    zsync_node_test ();
-    zsync_agent_test();
+    zsync_agent_test ();
     test_integrate_components ();
     printf("Tests passed OK\n");
 }
