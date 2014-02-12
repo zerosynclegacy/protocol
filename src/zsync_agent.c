@@ -53,13 +53,13 @@ struct _zsync_agent_t {
     void (*pass_update)(char *sender, zlist_t *file_metadata);
 
     // Passes a chunk of bytes to the CLIENT 
-    void (*pass_chunk)(byte *chunk, char *path, uint64_t sequence, uint64_t offset);
+    void (*pass_chunk)(zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset);
 
     // Returns a list of updates starting by the from state to the current state
     zlist_t* (*get_update)(uint64_t from_state);
     
     // Returns a chunk from a file.
-    byte* (*get_chunk)(char* path, uint64_t chunk_size, uint64_t offset);
+    zchunk_t * (*get_chunk)(char* path, uint64_t chunk_size, uint64_t offset);
 
     // Returns the current state of this peer
     uint64_t (*get_current_state)();
@@ -302,7 +302,7 @@ void zsync_agent_pass_update (zsync_agent_t *self, char *sender, zlist_t* fmetad
 // Passes chunk of a file
 
 void
-zsync_agent_pass_chunk (zsync_agent_t *self, byte *chunk, char *path, uint64_t sequence, uint64_t offset)
+zsync_agent_pass_chunk (zsync_agent_t *self, zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset)
 {
     assert (self);
     (*self->pass_chunk)(chunk, path, sequence, offset);
@@ -321,7 +321,7 @@ zsync_agent_update (zsync_agent_t *self, uint64_t from_state)
 // --------------------------------------------------------------------------
 // Gets a chunk from client
 
-byte *
+zchunk_t *
 zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset) 
 {
     assert (self);

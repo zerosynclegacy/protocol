@@ -274,14 +274,16 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                 case ZS_CMD_SEND_CHUNK:
                     printf("[ND] SEND_CHUNK (RCV)\n");
                     // Send receival to credit manager
-                    uint64_t chunk_size = CHUNK_SIZE;
+                    zframe_t *zframe = zs_msg_get_chunk (msg);
+                    uint64_t chunk_size = zframe_size (zframe);
                     zmsg_t *cmsg = zmsg_new ();
                     zmsg_addstr (cmsg, zsync_peer_uuid (sender));
                     zmsg_addstr (cmsg, "UPDATE");
                     zmsg_addstrf (cmsg, "%"PRId64, chunk_size);
                     zmsg_send (&cmsg, self->credit_pipe);
                     // Pass chunk to client
-                    byte *chunk = zframe_data (zs_msg_get_chunk (msg));
+                    byte *data = zframe_data (zframe);
+                    zchunk_t *chunk = zchunk_new (data, chunk_size);
                     char *path = zs_msg_get_file_path (msg);
                     uint64_t seq = zs_msg_get_sequence (msg);
                     uint64_t off = zs_msg_get_offset (msg);

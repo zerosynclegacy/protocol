@@ -197,9 +197,9 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             printf("[FT] requests (%d), credit(%"PRId64")\n", request_count, request->credit);
             if (request_count > 0 && request->credit > CHUNK_SIZE) {
                 zsync_ftfile_t *file = zlist_first (request->requested_files);
-                byte *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
+                zchunk_t *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
                 if (chunk) {
-                    zframe_t *data = zframe_new (chunk, CHUNK_SIZE);
+                    zframe_t *data = zframe_new (zchunk_data (chunk), zchunk_size (chunk));
                     zmsg_t *msg = zmsg_new ();
                     rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
                     assert (rc == 0);
