@@ -29,11 +29,15 @@ void
 pass_update (char *sender, zlist_t *fmetadata) 
 {
     printf ("[ST] PASS_UPDATE from %s: %"PRId64"\n", sender, zlist_size (fmetadata));
+    uint64_t size = 0;
     zlist_t *paths = zlist_new ();
-    zlist_append (paths, "abc.txt");
-    zlist_append (paths, "def.txt");
-    zlist_append (paths, "ghj.txt");
-    zsync_agent_send_request_files (agent, sender, paths, 5000000);
+    zs_fmetadata_t *meta = zlist_first (fmetadata);
+    while (meta) {
+        zlist_append (paths, zs_fmetadata_path (meta));
+        size += zs_fmetadata_size (meta);
+        meta = zlist_next (fmetadata);
+    }
+    zsync_agent_send_request_files (agent, sender, paths, size);
 }
 
 
@@ -67,7 +71,7 @@ get_update (uint64_t from_state)
     zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
     zlist_append(filemeta_list, fmetadata2);
 
-    return filemeta_list;
+    return NULL;
 }
 
 // Gets the current state

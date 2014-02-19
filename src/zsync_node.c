@@ -207,19 +207,19 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     assert (sender);
                     zhash_update (self->zyre_peers, zyre_sender, sender);
                     // 2. Get current state for sender
-                    uint64_t current_state = zs_msg_get_state (msg);
-                    printf ("[ND] current state: %"PRId64"\n", current_state);
+                    uint64_t remote_current_state = zs_msg_get_state (msg);
+                    printf ("[ND] current state: %"PRId64"\n", remote_current_state);
                     // 3. Lookup last known state
-                    uint64_t last_state = zsync_peer_state (sender);
-                    assert (current_state >= last_state);
+                    uint64_t last_state_local = zsync_peer_state (sender);
+                    assert (remote_current_state >= last_state_local);
                     // 4. Update peer attributes
                     zsync_peer_set_connected (sender, true);
                     // 5. Send LAST_STATE if differs 
                     printf ("[ND] last known state: %"PRId64"\n", zsync_peer_state (sender));
                     // TODO change back to > instead of >=
-                    if (current_state >= last_state) {
+                    if (remote_current_state >= last_state_local) {
                         zmsg_t *lmsg = zmsg_new ();
-                        zs_msg_pack_last_state (lmsg, last_state);
+                        zs_msg_pack_last_state (lmsg, last_state_local);
                         zyre_whisper (self->zyre, zyre_sender, &lmsg);
                     } else { 
                         zsync_peer_set_ready (sender, true);
@@ -229,12 +229,13 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     assert (sender);
                     zyre_out = zmsg_new ();
                     // Gets updates from client
-                    zlist_t *filemeta_list = zsync_agent_update (self->agent, 0x1);
+                    uint64_t last_state_remote = zs_msg_get_state (msg);
+                    zlist_t *filemeta_list = zsync_agent_update (self->agent, last_state_remote);
                    
                     if (filemeta_list) { 
                         // Send UPDATE
-                        current_state = zs_msg_get_state (msg);
-                        zs_msg_pack_update (zyre_out, current_state, filemeta_list);
+                        uint64_t my_current_state = zsync_agent_current_state (self->agent);
+                        zs_msg_pack_update (zyre_out, my_current_state, filemeta_list);
                         zyre_whisper (self->zyre, zyre_sender, &zyre_out);
                     }
                     break;

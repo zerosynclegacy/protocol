@@ -212,7 +212,7 @@ zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
 {
     zmsg_t *msg = zmsg_new ();
     // give the send_update_command to the protocol
-    if (zs_msg_pack_update (msg, state, list)) {
+    if (zs_msg_pack_update (msg, state, list) == 0) {
         zmsg_pushstr (msg, "UPDATE");
         zmsg_send (&msg, self->pipe);
         printf ("Update sent.\n");    
@@ -228,7 +228,7 @@ zsync_agent_send_abort (zsync_agent_t *self, char *sender, char* fileToAbort)
     zmsg_t *msg = zmsg_new ();
     // TODO: Implement the filePath to send_abort in protocol
     // give the send_abort_command to the protocol
-    if (zs_msg_pack_abort (msg)) { 
+    if (zs_msg_pack_abort (msg) == 0) { 
         zmsg_pushstr (msg, sender);
         zmsg_send (&msg, self->pipe);
         printf("Caution, file transfer aborted!!!\n");
