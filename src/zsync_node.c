@@ -189,6 +189,17 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             break;
         case ZYRE_EVENT_EXIT:
             printf("[ND] ZS_EXIT %s left the house!\n", zyre_sender);
+            sender = zhash_lookup (self->zyre_peers, zyre_sender);
+            // Reset Managers
+            zmsg_t *reset_msg = zmsg_new ();
+            zmsg_addstr (reset_msg, zsync_peer_uuid (sender));
+            zmsg_addstr (reset_msg, "ABORT");
+            zmsg_send (&reset_msg, self->file_pipe);
+            reset_msg = zmsg_new ();
+            zmsg_addstr (reset_msg, zsync_peer_uuid (sender));
+            zmsg_addstr (reset_msg, "ABORT");
+            zmsg_send (&reset_msg, self->credit_pipe);
+            // Remove Peer from active list
             zhash_delete (self->zyre_peers, zyre_sender);
             break;
         case ZYRE_EVENT_WHISPER:
@@ -218,16 +229,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     assert (remote_current_state >= last_state_local);
                     // 4. Update peer attributes
                     zsync_peer_set_connected (sender, true);
-                    // 5. Reset Managers
-                    zmsg_t *reset_msg = zmsg_new ();
-                    zmsg_addstr (reset_msg, zsync_peer_uuid (sender));
-                    zmsg_addstr (reset_msg, "ABORT");
-                    zmsg_send (&reset_msg, self->file_pipe);
-                    reset_msg = zmsg_new ();
-                    zmsg_addstr (reset_msg, zsync_peer_uuid (sender));
-                    zmsg_addstr (reset_msg, "ABORT");
-                    zmsg_send (&reset_msg, self->credit_pipe);
-                    // 6. Send LAST_STATE if differs 
+                    // 5. Send LAST_STATE if differs 
                     printf ("[ND] last known state: %"PRId64"\n", zsync_peer_state (sender));
                     if (remote_current_state >= last_state_local) {
                         zmsg_t *lmsg = zmsg_new ();
@@ -423,7 +425,7 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
 int
 zsync_node_test () 
 {
-    printf ("zsync_node: \n");
+    printf ("zsync_node: ");
     printf("OK\n");
 }
 
