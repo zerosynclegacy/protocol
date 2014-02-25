@@ -177,7 +177,6 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             break;        
         case ZYRE_EVENT_JOIN:
             printf ("[ND] ZS_JOIN: %s\n", zyre_sender);
-            // sender = zhash_lookup (self->zyre_peers, zyre_sender);
             // send GREET message
             zyre_out = zmsg_new ();
             uint64_t state = zsync_agent_current_state(self->agent); 
@@ -210,7 +209,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             sender = zhash_lookup (self->zyre_peers, zyre_sender);
             zyre_in = zyre_event_msg (event);
             zs_msg_t *msg = zs_msg_unpack (zyre_in);
-
+            if (sender) 
             switch (zs_msg_get_cmd (msg)) {
                 case ZS_CMD_GREET:
                     // 1. Get perm uuid
@@ -334,7 +333,7 @@ zsync_node_zyre_uuid (zsync_node_t *self, char *sender)
     char *key = zlist_first (keys);
     while (key) {
         zsync_peer_t *peer = zhash_lookup (self->zyre_peers, key);
-        if (streq (sender, zsync_peer_uuid (peer))) {
+        if (peer && streq (sender, zsync_peer_uuid (peer))) {
            return key;
         }
         key = zlist_next (keys);
