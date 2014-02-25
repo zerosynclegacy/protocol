@@ -35,12 +35,12 @@
 
 #include "zsync_classes.h"
 
-#define TOTAL_CREDIT CHUNK_SIZE * 100;
+#define TOTAL_CREDIT 1024 * 1024 * 100; // -> 100 MB
 
 struct _zsync_credit_t {
-    uint64_t req_bytes;
-    uint64_t approved_bytes;
-    uint64_t recv_bytes;
+    uint64_t reqested_bytes;  // Bytes requests for all files
+    uint64_t credited_bytes;  // Bytes credited to other peer 
+    uint64_t received_bytes;  // Bytes received from other peer 
 };
 
 typedef struct _zsync_credit_t zsync_credit_t;
@@ -49,9 +49,9 @@ zsync_credit_t *
 zsync_credit_new ()
 {
     zsync_credit_t *self = (zsync_credit_t *) zmalloc (sizeof (zsync_credit_t));
-    self->req_bytes = 0;
-    self->approved_bytes = 0;
-    self->recv_bytes= 0;
+    self->reqested_bytes = 0;
+    self->credited_bytes = 0;
+    self->received_bytes = 0;
     return self;
 }
 
@@ -83,7 +83,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
     zmsg_t *msg;
     int rc;
 
-    printf("[CR] started\n");
+    printf("[CR] started with %"PRId64" bytes credit\n", total_credit);
     while (zsync_agent_running (agent)) {
         msg = zmsg_recv (pipe);
         assert (msg);
@@ -103,38 +103,54 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
             uint64_t req_bytes;
             sscanf (zmsg_popstr (msg), "%"SCNd64, &req_bytes);
             printf("[CR] [RECV] request %"PRId64"\n", req_bytes);
-            credit->req_bytes += req_bytes;
+            credit->reqested_bytes += req_bytes;
         }
         else
         if (streq (command, "UPDATE")) {
             uint64_t recv_bytes; 
             sscanf (zmsg_popstr (msg), "%"SCNd64, &recv_bytes);
-            credit->recv_bytes -= recv_bytes;
+            credit->received_bytes += recv_bytes;
             printf("[CR] [RECV] update %"PRId64"\n", recv_bytes);
             total_credit += recv_bytes;
+        }
+        else 
+        if (streq (command, "ABORT")) {
+            zhash_delete (peer_credit, sender);
+            printf("[CR] [RECV] abort\n");
         }
         zmsg_destroy (&msg);
         
         if (total_credit >= CHUNK_SIZE) {
-            uint64_t diff = credit->approved_bytes - credit->recv_bytes;
-            if (diff <= (CHUNK_SIZE * 2)) {
+            uint64_t credit_left = credit->credited_bytes - credit->received_bytes;
+            if (credit_left <= CHUNK_SIZE * 2) {
+                uint64_t new_credit = 0;
+                uint64_t requested_bytes_left = credit->reqested_bytes - credit->received_bytes;
                 // send more credit
-                int chunks_left = (credit->req_bytes % CHUNK_SIZE) + 1;
+                int chunks_left = (requested_bytes_left % CHUNK_SIZE) + 1;
                 if (chunks_left > 10) {
-                    chunks_left = 10;                   
+                    new_credit = CHUNK_SIZE * 10;                  
+                } else {
+                    new_credit = requested_bytes_left;
                 }
                 zmsg_t *cmsg = zmsg_new ();
-                uint64_t credit = chunks_left * CHUNK_SIZE;
-                rc = zs_msg_pack_give_credit (cmsg, credit);
+                rc = zs_msg_pack_give_credit (cmsg, new_credit);
                 assert (rc == 0);
                 zmsg_pushstr (cmsg, sender);
                 zmsg_send (&cmsg, pipe);
-                total_credit -= credit;
-                printf("[CR] [SEND] credit: %"PRId64", to %s\n", credit, sender);
+                total_credit -= new_credit;
+                printf("[CR] [SEND] credit: %"PRId64", to %s\n", new_credit, sender);
             }
         }
     }
     printf("[CR] stopped\n");
     zhash_destroy (&peer_credit);
+}
+
+void
+zsync_credit_test ()
+{
+    printf(" * zsync_credit: ");
+    
+    printf("OK\n");
 }
 

@@ -813,7 +813,7 @@ zs_msg_get_offset (zs_msg_t *self)
 int 
 zs_msg_test () 
 {
-    printf("ZS_MSG: ");
+    printf(" * zs_msg: ");
 
     //@selftest
     /* 1. create zmq context */

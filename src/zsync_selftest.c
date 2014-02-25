@@ -58,20 +58,21 @@ get_update (uint64_t from_state)
 { 
     zlist_t *filemeta_list = zlist_new ();
     zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
-    zs_fmetadata_set_path (fmetadata, "%s", "a.txt");
+    zs_fmetadata_set_path (fmetadata, "%s", "abc.txt");
     zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_UPD);
     zs_fmetadata_set_size (fmetadata, 0x1533);
     zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
     zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
     zlist_append(filemeta_list, fmetadata);
     zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
-    zs_fmetadata_set_path (fmetadata2, "%s", "b.txt");
-    zs_fmetadata_set_renamed_path (fmetadata2, "%s", "c.txt");
-    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_REN);
-    zs_fmetadata_set_timestamp (fmetadata2, 0x1dfa544);
+    zs_fmetadata_set_path (fmetadata2, "%s", "def.txt");
+    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_UPD);
+    zs_fmetadata_set_size (fmetadata, 0x1533);
+    zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
+    zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
     zlist_append(filemeta_list, fmetadata2);
 
-    return NULL;
+    return filemeta_list;
 }
 
 // Gets the current state
@@ -104,7 +105,7 @@ get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 uint64_t
 get_current_state () 
 {
-    return 0x0;
+    return 0x1;
 }
 
 void test_integrate_components ()
@@ -137,9 +138,11 @@ main (int argc, char *argv [])
 {
     printf("Running self tests...\n");
     zs_msg_test ();
-//    zsync_node_test ();
+    zsync_credit_test ();
+    zsync_ftmanager_test ();
+    zsync_node_test ();
     zsync_agent_test ();
-    test_integrate_components ();
+    //test_integrate_components ();
     printf("Tests passed OK\n");
 }
 

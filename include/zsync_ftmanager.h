@@ -30,8 +30,14 @@ extern "C" {
 
 #define CHUNK_SIZE 30000
 
+// Start the file transfer manager as thread and provide a pipe to comminicate
+// back and forth. The file transfer manager expects a zsync_agent as arguments.
 void
     zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe);
+
+// Selftest
+void
+    zsync_ftmanager_test ();
 
 #ifdef __cplusplus
 }

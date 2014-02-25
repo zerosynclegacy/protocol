@@ -35,6 +35,7 @@
 
 #include "zsync_classes.h"
 
+
 struct _zsync_agent_t {
     // Zeromq context
     zctx_t *ctx;
@@ -42,6 +43,9 @@ struct _zsync_agent_t {
     // Zyre connection
     zyre_t *zyre;
 
+    // Control calls
+    zmutex_t *mutex;
+    
     // Pipe to node
     void *pipe;
 
@@ -80,6 +84,8 @@ zsync_agent_new ()
     assert (self->zyre);
     self->channel = "ZSYNC";
     self->running = false;
+
+    self->mutex = zmutex_new ();
     
     return self;
 }
@@ -97,6 +103,8 @@ zsync_agent_destroy (zsync_agent_t **self_p)
         // stop and destroy zyre
         zyre_stop (self->zyre); 
         zyre_destroy (&self->zyre);
+
+        zmutex_destroy (&self->mutex);
 
         free(self);
     }
@@ -215,7 +223,7 @@ zsync_agent_send_update (zsync_agent_t *self, uint64_t state, zlist_t *list)
     if (zs_msg_pack_update (msg, state, list) == 0) {
         zmsg_pushstr (msg, "UPDATE");
         zmsg_send (&msg, self->pipe);
-        printf ("Update sent.\n");    
+        printf ("[AG] Update sent.\n");    
     }
 }
 
@@ -231,7 +239,7 @@ zsync_agent_send_abort (zsync_agent_t *self, char *sender, char* fileToAbort)
     if (zs_msg_pack_abort (msg) == 0) { 
         zmsg_pushstr (msg, sender);
         zmsg_send (&msg, self->pipe);
-        printf("Caution, file transfer aborted!!!\n");
+        printf("[AG] Caution, file transfer aborted!!!\n");
     }
 }
 
@@ -286,7 +294,10 @@ uint64_t
 zsync_agent_current_state (zsync_agent_t *self)
 {
     assert (self);
-    return (*self->get_current_state)();
+    zmutex_lock (self->mutex); 
+    uint64_t current_state = (*self->get_current_state)();
+    zmutex_unlock (self->mutex); 
+    return current_state;
 }
 
 // --------------------------------------------------------------------------
@@ -295,7 +306,9 @@ zsync_agent_current_state (zsync_agent_t *self)
 void zsync_agent_pass_update (zsync_agent_t *self, char *sender, zlist_t* fmetadata)
 {
     assert (self);
+    zmutex_lock (self->mutex);
     (*self->pass_update)(sender, fmetadata);
+    zmutex_unlock (self->mutex); 
 }
 
 // --------------------------------------------------------------------------
@@ -305,7 +318,9 @@ void
 zsync_agent_pass_chunk (zsync_agent_t *self, zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset)
 {
     assert (self);
+    zmutex_lock (self->mutex);
     (*self->pass_chunk)(chunk, path, sequence, offset);
+    zmutex_unlock (self->mutex);
 }
 // --------------------------------------------------------------------------
 // Gets a list of updates starting by the from state to the current state
@@ -314,7 +329,10 @@ zlist_t *
 zsync_agent_update (zsync_agent_t *self, uint64_t from_state)
 {
     assert (self);
-    return (*self->get_update)(from_state);
+    zmutex_lock (self->mutex);
+    zlist_t *list = (*self->get_update)(from_state);
+    zmutex_unlock (self->mutex);
+    return list;
 }
 
 
@@ -325,7 +343,10 @@ zchunk_t *
 zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset) 
 {
     assert (self);
-    return (*self->get_chunk) (path, chunk_size, offset);
+    zmutex_lock (self->mutex);
+    zchunk_t *chunk = (*self->get_chunk) (path, chunk_size, offset);
+    zmutex_unlock (self->mutex);
+    return chunk;
 }
 
 
@@ -335,18 +356,19 @@ zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_
 uint64_t 
 test_get_current_state (uint64_t from_state) 
 {
-    printf("%"PRId64"\n", from_state);     
+    return 0x2;     
 }
     
 void
 zsync_agent_test ()
 {
-    printf("selftest zsync_agent* \n");
+    printf(" * zsync_agent: ");
     
     zsync_agent_t *agent = zsync_agent_new();
     
     zsync_agent_set_get_current_state (agent, test_get_current_state); 
-    (*agent->get_current_state)(2);
+    uint64_t state = (*agent->get_current_state)(2);
+    assert (state == 0x2);
 
     zsync_agent_destroy (&agent);
     printf("OK\n");

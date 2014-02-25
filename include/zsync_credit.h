@@ -28,8 +28,14 @@
 extern "C" {
 #endif
 
+// Start the credit manager as thread and provide a pipe to comminicate
+// back and forth. The credit manager expects a zsync_agent as arguments.
 void
     zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe);
+
+// Selftest
+void
+    zsync_credit_test ();
 
 #ifdef __cplusplus
 }
