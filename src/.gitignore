@@ -1,13 +1,13 @@
 
 core
 .libs/
-test/
-/test/
+tags
 msg.lo
 msg_selftest
 libzsync.la
 libzsync.pc
 zsync_selftest
+kill_selftests.sh
 .zsync_uuid
 .zsync_uuids
 /*.zsync_peer_states
