@@ -384,16 +384,18 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
             if (streq (command, "REQUEST")) {
                 char *sender = zmsg_popstr (msg);
                 char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
-                char *total_bytes = zmsg_popstr (msg);
-                assert (zyre_uuid);
-                printf("[ND] Recv Agent WHISPER REQUEST %s ; %s\n", zyre_uuid, sender);
-                zyre_whisper (self->zyre, zyre_uuid, &msg);
-                
-                zmsg_t *cmsg = zmsg_new ();
-                zmsg_addstr (cmsg, sender);
-                zmsg_addstr (cmsg, "REQUEST");
-                zmsg_addstr (cmsg, total_bytes);
-                zmsg_send (&cmsg, self->credit_pipe);
+                if (zyre_uuid) {
+                    char *total_bytes = zmsg_popstr (msg);
+                    assert (zyre_uuid);
+                    printf("[ND] Recv Agent WHISPER REQUEST %s ; %s\n", zyre_uuid, sender);
+                    zyre_whisper (self->zyre, zyre_uuid, &msg);
+                    
+                    zmsg_t *cmsg = zmsg_new ();
+                    zmsg_addstr (cmsg, sender);
+                    zmsg_addstr (cmsg, "REQUEST");
+                    zmsg_addstr (cmsg, total_bytes);
+                    zmsg_send (&cmsg, self->credit_pipe);
+                }
             }
             else
             if (streq (command, "UPDATE")) {
@@ -407,7 +409,9 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
             zmsg_t *msg = zmsg_recv (self->file_pipe);
             char *sender = zmsg_popstr (msg);
             char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
-            zyre_whisper (self->zyre, zyre_uuid, &msg);
+            if (zyre_uuid) {
+                zyre_whisper (self->zyre, zyre_uuid, &msg);
+            }
         }
         else
         if (which == self->credit_pipe) {
@@ -415,7 +419,9 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
             zmsg_t *msg = zmsg_recv (self->credit_pipe);
             char *sender = zmsg_popstr (msg);
             char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
-            zyre_whisper (self->zyre, zyre_uuid, &msg);
+            if (zyre_uuid) {
+                zyre_whisper (self->zyre, zyre_uuid, &msg);
+            }
         }
     }
     zsync_node_destroy (&self);
