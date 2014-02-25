@@ -184,9 +184,6 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             zyre_whisper (self->zyre, zyre_sender, &zyre_out);
             break;
         case ZYRE_EVENT_LEAVE:
-            // No action yet!
-            break;
-        case ZYRE_EVENT_EXIT:
             printf("[ND] ZS_EXIT %s left the house!\n", zyre_sender);
             sender = zhash_lookup (self->zyre_peers, zyre_sender);
             if (sender) {
@@ -203,13 +200,14 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                 zhash_delete (self->zyre_peers, zyre_sender);
             }
             break;
+        case ZYRE_EVENT_EXIT:
+            break;
         case ZYRE_EVENT_WHISPER:
         case ZYRE_EVENT_SHOUT:
             printf ("[ND] ZS_WHISPER: %s\n", zyre_sender);
             sender = zhash_lookup (self->zyre_peers, zyre_sender);
             zyre_in = zyre_event_msg (event);
             zs_msg_t *msg = zs_msg_unpack (zyre_in);
-            if (sender) 
             switch (zs_msg_get_cmd (msg)) {
                 case ZS_CMD_GREET:
                     // 1. Get perm uuid
