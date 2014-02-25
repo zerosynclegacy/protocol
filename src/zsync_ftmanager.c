@@ -181,6 +181,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             }
             else 
             if (streq (cmd, "ABORT")) {
+                zhash_delete (peer_requests, sender);
                 printf("[FT] FT_ABORT");
             }
             zmsg_destroy (&msg);

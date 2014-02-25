@@ -214,9 +214,17 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     assert (remote_current_state >= last_state_local);
                     // 4. Update peer attributes
                     zsync_peer_set_connected (sender, true);
-                    // 5. Send LAST_STATE if differs 
+                    // 5. Reset Managers
+                    zmsg_t *reset_msg = zmsg_new ();
+                    zmsg_addstr (reset_msg, zsync_peer_uuid (sender));
+                    zmsg_addstr (reset_msg, "ABORT");
+                    zmsg_send (&reset_msg, self->file_pipe);
+                    reset_msg = zmsg_new ();
+                    zmsg_addstr (reset_msg, zsync_peer_uuid (sender));
+                    zmsg_addstr (reset_msg, "ABORT");
+                    zmsg_send (&reset_msg, self->credit_pipe);
+                    // 6. Send LAST_STATE if differs 
                     printf ("[ND] last known state: %"PRId64"\n", zsync_peer_state (sender));
-                    // TODO change back to > instead of >=
                     if (remote_current_state >= last_state_local) {
                         zmsg_t *lmsg = zmsg_new ();
                         zs_msg_pack_last_state (lmsg, last_state_local);
@@ -399,7 +407,6 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
             zmsg_t *msg = zmsg_recv (self->credit_pipe);
             char *sender = zmsg_popstr (msg);
             char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
-            printf("[ND] Sender: %s, Zyre: %s\n", sender, zyre_uuid);
             zyre_whisper (self->zyre, zyre_uuid, &msg);
         }
     }
