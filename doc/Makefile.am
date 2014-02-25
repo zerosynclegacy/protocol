@@ -1,5 +1,5 @@
 MAN1 =
-MAN3 = zs_msg.3
+MAN3 = zs_msg.3 zs_fmetadata.3
 MAN7 =
 MAN_DOC = $(MAN1) $(MAN3) $(MAN7)
 
