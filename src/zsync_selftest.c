@@ -142,7 +142,7 @@ main (int argc, char *argv [])
     zsync_ftmanager_test ();
     zsync_node_test ();
     zsync_agent_test ();
-    //test_integrate_components ();
+    test_integrate_components ();
     printf("Tests passed OK\n");
 }
 
