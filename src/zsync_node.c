@@ -185,7 +185,11 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
             zyre_whisper (self->zyre, zyre_sender, &zyre_out);
             break;
         case ZYRE_EVENT_LEAVE:
+            // No action yet!
+            break;
         case ZYRE_EVENT_EXIT:
+            printf("[ND] ZS_EXIT %s left the house!\n", zyre_sender);
+            zhash_delete (self->zyre_peers, zyre_sender);
             break;
         case ZYRE_EVENT_WHISPER:
         case ZYRE_EVENT_SHOUT:
