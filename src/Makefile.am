@@ -22,18 +22,16 @@ libzsync_la_SOURCES = \
     zsync_node.c \
     zsync_agent.c
 
+AM_CFLAGS = -g
 AM_CPPFLAGS = -I$(top_srcdir)/include    
 
-bin_PROGRAMS = fileClient fileServer zsync_selftest
-
-fileClient_SOURCES = fileTransferClient.c
-fileClient_LDADD = libzsync.la
-
-fileServer_SOURCES = fileTransferServer.c
-fileServer_LDADD = libzsync.la
+bin_PROGRAMS = zsync_selftest
 
 zsync_selftest_LDADD = libzsync.la
+zsync_selftest_SOURCES = zsync_selftest.c
+
+TESTS = zsync_selftest
 
 generate-tags:
-	ctags *.c ~/workspace/zyre/src/*.c ~/workspace/czmq/src/*.c
+	ctags *.c ~/workspace/zeromq/zyre/src/*.c ~/workspace/zeromq/czmq/src/*.c
 

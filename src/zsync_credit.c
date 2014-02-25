@@ -146,3 +146,11 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
     zhash_destroy (&peer_credit);
 }
 
+void
+zsync_credit_test ()
+{
+    printf(" * zsync_credit: ");
+    
+    printf("OK\n");
+}
+

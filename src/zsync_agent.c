@@ -356,18 +356,19 @@ zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_
 uint64_t 
 test_get_current_state (uint64_t from_state) 
 {
-    printf("%"PRId64"\n", from_state);     
+    return 0x2;     
 }
     
 void
 zsync_agent_test ()
 {
-    printf("selftest zsync_agent* \n");
+    printf(" * zsync_agent: ");
     
     zsync_agent_t *agent = zsync_agent_new();
     
     zsync_agent_set_get_current_state (agent, test_get_current_state); 
-    (*agent->get_current_state)(2);
+    uint64_t state = (*agent->get_current_state)(2);
+    assert (state == 0x2);
 
     zsync_agent_destroy (&agent);
     printf("OK\n");

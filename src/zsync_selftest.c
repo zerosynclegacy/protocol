@@ -138,9 +138,11 @@ main (int argc, char *argv [])
 {
     printf("Running self tests...\n");
     zs_msg_test ();
-//    zsync_node_test ();
+    zsync_credit_test ();
+    zsync_ftmanager_test ();
+    zsync_node_test ();
     zsync_agent_test ();
-    test_integrate_components ();
+    //test_integrate_components ();
     printf("Tests passed OK\n");
 }
 

@@ -425,7 +425,7 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
 int
 zsync_node_test () 
 {
-    printf ("zsync_node: ");
+    printf (" * zsync_node: ");
     printf("OK\n");
 }
 
