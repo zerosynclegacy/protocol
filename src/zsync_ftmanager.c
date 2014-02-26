@@ -184,6 +184,10 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                 zhash_delete (peer_requests, sender);
                 printf("[FT] FT_ABORT");
             }
+            else
+            if (streq (cmd, "SHUTDOWN")) {
+                break;
+            }
             zmsg_destroy (&msg);
         }
        

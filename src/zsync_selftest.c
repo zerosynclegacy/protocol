@@ -46,7 +46,7 @@ pass_chunk (zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset)
 {
     // save chunk
     printf ("[ST] PASS_CHUNK %s, %"PRId64", %"PRId64", %"PRId64"\n", path, sequence, zchunk_size (chunk), offset);
-    zfile_t *file = zfile_new(".", path);
+    zfile_t *file = zfile_new("./syncfolder", path);
     zfile_output(file);
     zfile_write(file, chunk, offset);
     zfile_close(file);
@@ -56,23 +56,35 @@ pass_chunk (zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset)
 zlist_t *
 get_update (uint64_t from_state)
 { 
+    printf("[ST] GET_UPDATE\n");
     zlist_t *filemeta_list = zlist_new ();
-    zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
-    zs_fmetadata_set_path (fmetadata, "%s", "abc.txt");
-    zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_UPD);
-    zs_fmetadata_set_size (fmetadata, 0x1533);
-    zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
-    zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
-    zlist_append(filemeta_list, fmetadata);
-    zs_fmetadata_t *fmetadata2 = zs_fmetadata_new ();
-    zs_fmetadata_set_path (fmetadata2, "%s", "def.txt");
-    zs_fmetadata_set_operation (fmetadata2, ZS_FILE_OP_UPD);
-    zs_fmetadata_set_size (fmetadata, 0x1533);
-    zs_fmetadata_set_timestamp (fmetadata, 0x1dfa533);
-    zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
-    zlist_append(filemeta_list, fmetadata2);
+    
+    DIR *dir;
+    struct dirent *ent;
+    if ((dir = opendir ("./syncfolder")) != NULL) {
+        /* print all the files and directories within directory */
+        while ((ent = readdir (dir)) != NULL) {
+            if (strcmp (ent->d_name, ".") != 0 && strcmp (ent->d_name, "..") != 0) {
+                struct stat st;
+                stat(ent->d_name, &st);
 
-    return filemeta_list;
+                zs_fmetadata_t *fmetadata = zs_fmetadata_new ();
+                zs_fmetadata_set_path (fmetadata, "%s", ent->d_name);
+                zs_fmetadata_set_size (fmetadata, st.st_size);
+                zs_fmetadata_set_operation (fmetadata, ZS_FILE_OP_UPD);
+                zs_fmetadata_set_timestamp (fmetadata, st.st_ctime);
+                zs_fmetadata_set_checksum (fmetadata, 0x3312AFFDE12);
+                zlist_append(filemeta_list, fmetadata);
+            }
+        }
+        closedir (dir);
+    } 
+    if (zlist_size (filemeta_list) > 0) {
+        return filemeta_list;
+    }
+    else {
+        return NULL;
+    }
 }
 
 // Gets the current state
@@ -81,13 +93,18 @@ zchunk_t *
 get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 {
     printf("[ST] GET CHUNK\n");
-    if (zsys_file_exists (path)) {
+    char *path_new = malloc(strlen("./syncfolder/") + strlen(path) + 1);
+    path_new[0] = '\0';
+    strcat(path_new, "./syncfolder/");
+    strcat(path_new, path); 
+
+    if (zsys_file_exists (path_new)) {
         printf("[ST] File exist\n");
-        zfile_t *file = zfile_new (".", path);
+        zfile_t *file = zfile_new (".", path_new);
         if (zfile_is_readable (file)) {
             printf("[ST] File read\n");
             zfile_input (file); 
-            if (zfile_size (path) > offset) {
+            if (zfile_size (path_new) > offset) {
                 zchunk_t *chunk = zfile_read (file, chunk_size, offset);
                 zfile_destroy (&file);
                 return chunk;
@@ -97,7 +114,7 @@ get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
             }
         }
     } else {
-        printf("[ST] File %s not exist\n", path);
+        printf("[ST] File %s not exist\n", path_new);
     }
     return NULL;
 }
@@ -124,9 +141,21 @@ void test_integrate_components ()
     zlist_t *files;
 
     while (zsync_agent_running (agent)) {
-        zclock_sleep (250);
+        zclock_sleep (4000);
+        DIR *dir;
+        struct dirent *ent;
+        int count = -2;
+        if ((dir = opendir ("./syncfolder")) != NULL) {
+            while ((ent = readdir (dir)) != NULL) {
+                count++; 
+            }
+        }
+        if (count == 5)
+            break;
     }
     zsync_agent_stop (agent);
+        
+    zclock_sleep (500);
 
     zsync_agent_destroy (&agent);
     

@@ -118,6 +118,10 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
             zhash_delete (peer_credit, sender);
             printf("[CR] [RECV] abort\n");
         }
+        else
+        if (streq (command, "SHUTDOWN")) {
+            break;
+        }
         zmsg_destroy (&msg);
         
         if (total_credit >= CHUNK_SIZE) {

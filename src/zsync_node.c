@@ -399,6 +399,18 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
                 printf("[ND] Recv Agent SHOUT UPDATE\n");
                 zyre_shout (self->zyre, zsync_agent_channel (self->agent), &msg);
             }
+            else
+            if (streq (command, "SHUTDOWN")) {
+                zmsg_t *msg = zmsg_new ();
+                zmsg_addstr (msg, "SHUTDOWN");
+                zmsg_addstr (msg, "SHUTDOWN");
+                zmsg_send (&msg, self->file_pipe);
+                msg = zmsg_new ();
+                zmsg_addstr (msg, "SHUTDOWN");
+                zmsg_addstr (msg, "SHUTDOWN");
+                zmsg_send (&msg, self->credit_pipe);
+                break;
+            }
         }
         else
         if (which == self->file_pipe) {
@@ -422,9 +434,8 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
         }
     }
     zsync_node_destroy (&self);
-    zpoller_destroy (&poller);
-    zsync_agent_stop (self->agent);
     printf("[ND] stopped\n");
+    zpoller_destroy (&poller);
 }
 
 int
