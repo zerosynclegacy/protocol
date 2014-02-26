@@ -122,7 +122,7 @@ get_chunk (char *path, uint64_t chunk_size, uint64_t offset)
 uint64_t
 get_current_state () 
 {
-    return 0x1;
+    return 0x0;
 }
 
 void test_integrate_components ()
@@ -171,7 +171,9 @@ main (int argc, char *argv [])
     zsync_ftmanager_test ();
     zsync_node_test ();
     zsync_agent_test ();
-    test_integrate_components ();
+    if (argc > 1) {
+        test_integrate_components ();
+    }
     printf("Tests passed OK\n");
 }
 
