@@ -226,7 +226,6 @@ zsync_node_recv_from_zyre (zsync_node_t *self, zyre_event_t *event)
                     // 3. Lookup last known state
                     uint64_t last_state_local = zsync_peer_state (sender);
                     printf ("[ND] last known state: %"PRId64"\n", zsync_peer_state (sender));
-                    assert (remote_current_state >= last_state_local);
                     // 4. Update peer attributes
                     zsync_peer_set_connected (sender, true);
                     // 5. Send LAST_STATE if differs 
