@@ -100,8 +100,9 @@ zsync_agent_destroy (zsync_agent_t **self_p)
     if (*self_p) {
         zsync_agent_t *self = *self_p;
         
-        // stop and destroy zyre
+        // destroy zyre and context
         zyre_destroy (&self->zyre);
+        zctx_destroy (&self->ctx);
 
         zmutex_destroy (&self->mutex);
 
@@ -138,11 +139,17 @@ void
 zsync_agent_stop (zsync_agent_t *self)
 {
     assert (self);
-    self->running = false;
+    zmutex_lock (self->mutex); 
+    // send terminate to node
     zmsg_t *msg = zmsg_new ();
-    zmsg_addstr (msg, "SHUTDOWN");
+    zmsg_addstr (msg, "TERMINATE");
     zmsg_send (&msg, self->pipe);
+    // receive terminate confirmation
+    self->running = false;
+    zmsg_t *tmsg = zmsg_recv (self->pipe);
+    zmsg_destroy (&tmsg);
     zyre_stop (self->zyre);
+    zmutex_unlock (self->mutex);
 }
 
 // --------------------------------------------------------------------------

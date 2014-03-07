@@ -87,7 +87,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
     while (zsync_agent_running (agent)) {
         msg = zmsg_recv (pipe);
         assert (msg);
-         
+        
         // First frame is sender
         char *sender = zmsg_popstr (msg);
         // Get credit information for sender
@@ -119,9 +119,12 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
             printf("[CR] [RECV] abort\n");
         }
         else
-        if (streq (command, "SHUTDOWN")) {
-            break;
-        }
+        if (streq (command, "TERMINATE")) {
+           zmsg_t *tmsg = zmsg_new ();
+           zmsg_pushstr (tmsg, "OK");
+           zmsg_send (&tmsg, pipe);
+           break;
+        } 
         zmsg_destroy (&msg);
         
         if (total_credit >= CHUNK_SIZE) {
@@ -146,8 +149,8 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
             }
         }
     }
-    printf("[CR] stopped\n");
     zhash_destroy (&peer_credit);
+    printf("[CR] stopped\n");
 }
 
 void

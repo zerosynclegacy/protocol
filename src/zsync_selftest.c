@@ -150,7 +150,7 @@ void test_integrate_components ()
                 count++; 
             }
         }
-        if (count == 5)
+        if (count == 2)
             break;
     }
     zsync_agent_stop (agent);

@@ -185,7 +185,10 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                 printf("[FT] FT_ABORT");
             }
             else
-            if (streq (cmd, "SHUTDOWN")) {
+            if (streq (cmd, "TERMINATE")) {
+                zmsg_t *tmsg = zmsg_new ();
+                zmsg_pushstr (tmsg, "OK");
+                zmsg_send (&tmsg, pipe);
                 break;
             }
             zmsg_destroy (&msg);
@@ -226,8 +229,8 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             key = zlist_next (keys);
         }
     }
-    printf("[FT] stopped\n");
     zhash_destroy (&peer_requests);
+    printf("[FT] stopped\n");
 }
 
 void
