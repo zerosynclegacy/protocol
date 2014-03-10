@@ -34,8 +34,7 @@
 struct _zsync_peer_t {
     char *uuid;
     uint64_t state;
-    bool connected;
-    bool ready;
+    int zyre_state;
 };
 
 
@@ -49,8 +48,7 @@ zsync_peer_new (char *uuid, uint64_t state)
     
     self->uuid = (char *) malloc (sizeof (char) * 32 + 1);
     strcpy (self->uuid, uuid);
-    self->connected = false;
-    self->ready = false;
+    self->zyre_state = 0;
     self->state = state;
     return self;
 }
@@ -104,23 +102,22 @@ zsync_peer_set_state (zsync_peer_t *self, uint64_t state)
 }
 
 // --------------------------------------------------------------------------
-// Sets the connected flag
+// Sets the zyre connection state
 
 void
-zsync_peer_set_connected (zsync_peer_t *self, bool connected)
+zsync_peer_set_zyre_state (zsync_peer_t *self, int state)
 {
     assert (self);
-    self->connected = connected;
+    self->zyre_state = state;
 }
 
 // --------------------------------------------------------------------------
-// Sets the ready flag
+// Gets the zyre connection state
 
-void
-zsync_peer_set_ready (zsync_peer_t *self, bool ready)
+int
+zsync_peer_zyre_state (zsync_peer_t *self)
 {
     assert (self);
-    self->ready = ready;
+    return self->zyre_state;
 }
-
 

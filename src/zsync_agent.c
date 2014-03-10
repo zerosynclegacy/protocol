@@ -146,6 +146,7 @@ zsync_agent_stop (zsync_agent_t *self)
     zmsg_send (&msg, self->pipe);
     // receive terminate confirmation
     self->running = false;
+    // waiting for threads to shutdown
     zmsg_t *tmsg = zmsg_recv (self->pipe);
     zmsg_destroy (&tmsg);
     zyre_stop (self->zyre);

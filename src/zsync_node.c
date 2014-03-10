@@ -204,6 +204,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
             zyre_whisper (self->zyre, zyre_sender, &zyre_out);
             break;
         case ZYRE_EVENT_LEAVE:
+            break;
         case ZYRE_EVENT_EXIT:
             /*
             printf("[ND] ZS_EXIT %s left the house!\n", zyre_sender);
@@ -230,7 +231,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
             zs_msg_t *msg = zs_msg_unpack (zyre_in);
             switch (zs_msg_get_cmd (msg)) {
                 case ZS_CMD_GREET:
-                    // 1. Get perm uuid
+                    // Get perm uuid
                     sender_uuid = zuuid_new ();
                     zuuid_set (sender_uuid, zs_msg_uuid (msg));
                     sender = zsync_node_peers_lookup (self, zuuid_str (sender_uuid));
@@ -240,22 +241,19 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
                     } 
                     assert (sender);
                     zhash_update (self->zyre_peers, zyre_sender, sender);
-                    // 2. Get current state for sender
+                    zsync_peer_set_zyre_state (sender, ZYRE_EVENT_JOIN);
+                    // Get current state for sender
                     uint64_t remote_current_state = zs_msg_get_state (msg);
                     printf ("[ND] current state: %"PRId64"\n", remote_current_state);
-                    // 3. Lookup last known state
+                    // Lookup last known state
                     uint64_t last_state_local = zsync_peer_state (sender);
                     printf ("[ND] last known state: %"PRId64"\n", zsync_peer_state (sender));
-                    // 4. Update peer attributes
-                    zsync_peer_set_connected (sender, true);
-                    // 5. Send LAST_STATE if differs 
+                    // Send LAST_STATE if differs 
                     if (remote_current_state >= last_state_local) {
                         zmsg_t *lmsg = zmsg_new ();
                         zs_msg_pack_last_state (lmsg, last_state_local);
                         zyre_whisper (self->zyre, zyre_sender, &lmsg);
-                    } else { 
-                        zsync_peer_set_ready (sender, true);
-                    }
+                    }  
                     break;
                 case ZS_CMD_LAST_STATE:
                     assert (sender);
@@ -274,7 +272,6 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
                 case ZS_CMD_UPDATE:
                     printf ("[ND] UPDATE\n");
                     assert (sender);
-                    zsync_peer_set_ready (sender, true);
                     uint64_t state = zs_msg_get_state (msg);
                     zsync_peer_set_state (sender, state); 
                     zsync_node_save_peers (self);
@@ -392,7 +389,7 @@ zsync_node_recv_from_agent (zsync_node_t *self)
         msg = zmsg_new ();
         zmsg_addstr (msg, "OK");
         zmsg_send (&msg, self->pipe);
-        printf("OK agent\n");
+        printf("SEND OK agent\n");
         
         self->terminated = true;
     }
@@ -424,7 +421,7 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
     self->file_pipe = zthread_fork (self->ctx, zsync_ftmanager_engine, agent);
     zpoller_add (poller, self->file_pipe);
     // Create thread for credit management
-    self->credit_pipe = zthread_fork (self->ctx, zsync_credit_manager_engine, agent);
+    self->credit_pipe = zthread_fork (self->ctx, zsync_credit_manager_engine, NULL);
     zpoller_add (poller, self->credit_pipe);
 
     // Start receiving messages
@@ -469,7 +466,6 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
         }
     }
     zpoller_destroy (&poller);
-    printf("[ND] stopped1\n");
     zsync_node_destroy (&self);
     printf("[ND] stopped\n");
 }

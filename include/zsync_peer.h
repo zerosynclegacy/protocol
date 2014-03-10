@@ -54,13 +54,13 @@ uint64_t
 void
     zsync_peer_set_state (zsync_peer_t *self, uint64_t state);
 
-// Sets the connected flag
+// Sets the zyre connection state
 void
-    zsync_peer_set_connected (zsync_peer_t *self, bool connected);
+    zsync_peer_set_zyre_state (zsync_peer_t *self, int zyre_state);
 
-// Sets the ready flag
-void
-    zsync_peer_set_ready (zsync_peer_t *self, bool ready);
+// Gets the zyre connection state
+int
+    zsync_peer_zyre_state (zsync_peer_t *self);
 // @end
 
 #ifdef __cplusplus
