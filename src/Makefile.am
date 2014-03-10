@@ -25,13 +25,10 @@ libzsync_la_SOURCES = \
 AM_CFLAGS = -g
 AM_CPPFLAGS = -I$(top_srcdir)/include    
 
-bin_PROGRAMS = zsync_selftest zyre_test
+bin_PROGRAMS = zsync_selftest
 
 zsync_selftest_LDADD = libzsync.la
 zsync_selftest_SOURCES = zsync_selftest.c
-
-zyre_test_LDADD = libzsync.la
-zyre_test_SOURCES = zyre_test.c
 
 TESTS = zsync_selftest
 
