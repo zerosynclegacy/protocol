@@ -1,0 +1,3 @@
+export PATH=../zcodec/model:$PATH
+gsl -q -script:codec_c zsync_credit_msg.xml
+

@@ -2,7 +2,7 @@
     zs_fmetadata - work with ZeroSync file meta data
 
    -------------------------------------------------------------------------
-   Copyright (c) 2013 Kevin Sapper, Bernhard Finger
+   Copyright (c) 2013-2014 Kevin Sapper, Bernhard Finger
    Copyright other contributors as noted in the AUTHORS file.
    
    This file is part of ZeroSync, see http://zerosync.org.
