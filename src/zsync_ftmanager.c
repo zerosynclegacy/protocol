@@ -138,7 +138,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
     int rc;
 
     printf("[FT] started\n");
-    while (zsync_agent_running (agent)) {
+    while (true) {
         // Proceed if there is still work to do and no message are in queue,
         // Otherwise wait for work
         if (s_work_left (peer_requests)) {
@@ -217,6 +217,7 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                     // Increment for next chunk
                     file->sequence++;
                     file->offset += CHUNK_SIZE;
+                    request->credit -= CHUNK_SIZE;
                     printf("[FT] chunk send\n");
                 } 
                 else {

@@ -141,7 +141,7 @@ void test_integrate_components ()
     zlist_t *files;
 
     while (zsync_agent_running (agent)) {
-        zclock_sleep (4000);
+        zclock_sleep (25000);
         DIR *dir;
         struct dirent *ent;
         int count = -2;

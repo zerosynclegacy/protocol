@@ -306,11 +306,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
                     // Send receival to credit manager
                     zframe_t *zframe = zs_msg_get_chunk (msg);
                     uint64_t chunk_size = zframe_size (zframe);
-                    zmsg_t *cmsg = zmsg_new ();
-                    zmsg_addstr (cmsg, zsync_peer_uuid (sender));
-                    zmsg_addstr (cmsg, "UPDATE");
-                    zmsg_addstrf (cmsg, "%"PRId64, chunk_size);
-                    zmsg_send (&cmsg, self->credit_pipe);
+                    zsync_credit_msg_send_update (self->credit_pipe, zsync_peer_uuid (sender), chunk_size);
                     // Pass chunk to client
                     byte *data = zframe_data (zframe);
                     zchunk_t *chunk = zchunk_new (data, chunk_size);
@@ -347,16 +343,13 @@ zsync_node_recv_from_agent (zsync_node_t *self)
         char *sender = zmsg_popstr (msg);
         char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
         if (zyre_uuid) {
-            char *total_bytes = zmsg_popstr (msg);
+            char *total_bytes_s = zmsg_popstr (msg);
+            uint64_t total_bytes;
+            sscanf (total_bytes_s, "%"PRId64, &total_bytes);
             assert (zyre_uuid);
             printf("[ND] Recv Agent WHISPER REQUEST %s ; %s\n", zyre_uuid, sender);
             zyre_whisper (self->zyre, zyre_uuid, &msg);
-            
-            zmsg_t *cmsg = zmsg_new ();
-            zmsg_addstr (cmsg, sender);
-            zmsg_addstr (cmsg, "REQUEST");
-            zmsg_addstr (cmsg, total_bytes);
-            zmsg_send (&cmsg, self->credit_pipe);
+            zsync_credit_msg_send_request (self->credit_pipe, sender, total_bytes);
         }
     }
     else
@@ -372,10 +365,7 @@ zsync_node_recv_from_agent (zsync_node_t *self)
         zmsg_addstr (msg, "TERMINATE");
         zmsg_send (&msg, self->file_pipe);
         // terminate credit manager
-        msg = zmsg_new ();
-        zmsg_addstr (msg, "TERMINATE");
-        zmsg_addstr (msg, "TERMINATE");
-        zmsg_send (&msg, self->credit_pipe);
+        zsync_credit_msg_send_terminate (self->credit_pipe);
         
         // receive termination confirmation
         msg = zmsg_recv (self->file_pipe);
@@ -452,14 +442,16 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
         else
         if (which == self->credit_pipe) {
             printf("[ND] Recv Credit Manager\n");
-            zmsg_t *msg = zmsg_recv (self->credit_pipe);
-            char *sender = zmsg_popstr (msg);
+            zsync_credit_msg_t *cmsg = zsync_credit_msg_recv (self->credit_pipe);
+            char *sender = zsync_credit_msg_sender (cmsg);
             char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
             if (zyre_uuid) {
-                zmsg_t *zmsg = zmsg_dup (msg);
-                zyre_whisper (self->zyre, zyre_uuid, &zmsg);
-                zmsg_destroy (&msg);
+                zmsg_t *msg = zmsg_new ();
+                int rc = zs_msg_pack_give_credit (msg, zsync_credit_msg_credit (cmsg));
+                assert (rc == 0);
+                zyre_whisper (self->zyre, zyre_uuid, &msg);
             }
+            zsync_credit_msg_destroy (&cmsg);
         }
         if (self->terminated) {
             break;

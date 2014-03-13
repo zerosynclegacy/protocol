@@ -43,6 +43,7 @@ struct _zsync_credit_msg_t {
     char *sender;               //  
     uint64_t req_bytes;         //  
     uint64_t recv_bytes;        //  
+    uint64_t credit;            //  
 };
 
 //  --------------------------------------------------------------------------
@@ -256,14 +257,16 @@ zsync_credit_msg_recv (void *input)
             GET_NUMBER8 (self->recv_bytes);
             break;
 
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
             free (self->sender);
             GET_STRING (self->sender);
+            GET_NUMBER8 (self->credit);
+            break;
+
+        case ZSYNC_CREDIT_MSG_ABORT:
             break;
 
         case ZSYNC_CREDIT_MSG_TERMINATE:
-            free (self->sender);
-            GET_STRING (self->sender);
             break;
 
         default:
@@ -316,18 +319,19 @@ zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
             frame_size += 8;
             break;
             
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
             //  sender is a string with 1-byte length
             frame_size++;       //  Size is one octet
             if (self->sender)
                 frame_size += strlen (self->sender);
+            //  credit is a 8-byte integer
+            frame_size += 8;
+            break;
+            
+        case ZSYNC_CREDIT_MSG_ABORT:
             break;
             
         case ZSYNC_CREDIT_MSG_TERMINATE:
-            //  sender is a string with 1-byte length
-            frame_size++;       //  Size is one octet
-            if (self->sender)
-                frame_size += strlen (self->sender);
             break;
             
         default:
@@ -362,20 +366,19 @@ zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
             PUT_NUMBER8 (self->recv_bytes);
             break;
             
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
             if (self->sender) {
                 PUT_STRING (self->sender);
             }
             else
                 PUT_NUMBER1 (0);    //  Empty string
+            PUT_NUMBER8 (self->credit);
+            break;
+            
+        case ZSYNC_CREDIT_MSG_ABORT:
             break;
             
         case ZSYNC_CREDIT_MSG_TERMINATE:
-            if (self->sender) {
-                PUT_STRING (self->sender);
-            }
-            else
-                PUT_NUMBER1 (0);    //  Empty string
             break;
             
     }
@@ -433,15 +436,29 @@ zsync_credit_msg_send_update (
 
 
 //  --------------------------------------------------------------------------
+//  Send the GIVE_CREDIT to the socket in one step
+
+int
+zsync_credit_msg_send_give_credit (
+    void *output,
+    char *sender,
+    uint64_t credit)
+{
+    zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_GIVE_CREDIT);
+    zsync_credit_msg_set_sender (self, sender);
+    zsync_credit_msg_set_credit (self, credit);
+    return zsync_credit_msg_send (&self, output);
+}
+
+
+//  --------------------------------------------------------------------------
 //  Send the ABORT to the socket in one step
 
 int
 zsync_credit_msg_send_abort (
-    void *output,
-    char *sender)
+    void *output)
 {
     zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_ABORT);
-    zsync_credit_msg_set_sender (self, sender);
     return zsync_credit_msg_send (&self, output);
 }
 
@@ -451,11 +468,9 @@ zsync_credit_msg_send_abort (
 
 int
 zsync_credit_msg_send_terminate (
-    void *output,
-    char *sender)
+    void *output)
 {
     zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_TERMINATE);
-    zsync_credit_msg_set_sender (self, sender);
     return zsync_credit_msg_send (&self, output);
 }
 
@@ -484,12 +499,15 @@ zsync_credit_msg_dup (zsync_credit_msg_t *self)
             copy->recv_bytes = self->recv_bytes;
             break;
 
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
             copy->sender = strdup (self->sender);
+            copy->credit = self->credit;
+            break;
+
+        case ZSYNC_CREDIT_MSG_ABORT:
             break;
 
         case ZSYNC_CREDIT_MSG_TERMINATE:
-            copy->sender = strdup (self->sender);
             break;
 
     }
@@ -524,20 +542,21 @@ zsync_credit_msg_dump (zsync_credit_msg_t *self)
             printf ("    recv_bytes=%ld\n", (long) self->recv_bytes);
             break;
             
-        case ZSYNC_CREDIT_MSG_ABORT:
-            puts ("ABORT:");
+        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
+            puts ("GIVE_CREDIT:");
             if (self->sender)
                 printf ("    sender='%s'\n", self->sender);
             else
                 printf ("    sender=\n");
+            printf ("    credit=%ld\n", (long) self->credit);
+            break;
+            
+        case ZSYNC_CREDIT_MSG_ABORT:
+            puts ("ABORT:");
             break;
             
         case ZSYNC_CREDIT_MSG_TERMINATE:
             puts ("TERMINATE:");
-            if (self->sender)
-                printf ("    sender='%s'\n", self->sender);
-            else
-                printf ("    sender=\n");
             break;
             
     }
@@ -592,6 +611,9 @@ zsync_credit_msg_command (zsync_credit_msg_t *self)
             break;
         case ZSYNC_CREDIT_MSG_UPDATE:
             return ("UPDATE");
+            break;
+        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
+            return ("GIVE_CREDIT");
             break;
         case ZSYNC_CREDIT_MSG_ABORT:
             return ("ABORT");
@@ -662,6 +684,24 @@ zsync_credit_msg_set_recv_bytes (zsync_credit_msg_t *self, uint64_t recv_bytes)
 }
 
 
+//  --------------------------------------------------------------------------
+//  Get/set the credit field
+
+uint64_t
+zsync_credit_msg_credit (zsync_credit_msg_t *self)
+{
+    assert (self);
+    return self->credit;
+}
+
+void
+zsync_credit_msg_set_credit (zsync_credit_msg_t *self, uint64_t credit)
+{
+    assert (self);
+    self->credit = credit;
+}
+
+
 
 //  --------------------------------------------------------------------------
 //  Selftest
@@ -712,22 +752,29 @@ zsync_credit_msg_test (bool verbose)
     assert (zsync_credit_msg_recv_bytes (self) == 123);
     zsync_credit_msg_destroy (&self);
 
-    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_ABORT);
+    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_GIVE_CREDIT);
     zsync_credit_msg_set_sender (self, "Life is short but Now lasts for ever");
+    zsync_credit_msg_set_credit (self, 123);
     zsync_credit_msg_send (&self, output);
     
     self = zsync_credit_msg_recv (input);
     assert (self);
     assert (streq (zsync_credit_msg_sender (self), "Life is short but Now lasts for ever"));
+    assert (zsync_credit_msg_credit (self) == 123);
+    zsync_credit_msg_destroy (&self);
+
+    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_ABORT);
+    zsync_credit_msg_send (&self, output);
+    
+    self = zsync_credit_msg_recv (input);
+    assert (self);
     zsync_credit_msg_destroy (&self);
 
     self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_TERMINATE);
-    zsync_credit_msg_set_sender (self, "Life is short but Now lasts for ever");
     zsync_credit_msg_send (&self, output);
     
     self = zsync_credit_msg_recv (input);
     assert (self);
-    assert (streq (zsync_credit_msg_sender (self), "Life is short but Now lasts for ever"));
     zsync_credit_msg_destroy (&self);
 
     zctx_destroy (&ctx);

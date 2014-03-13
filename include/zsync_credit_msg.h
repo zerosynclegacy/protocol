@@ -36,19 +36,22 @@
         sender              string      
         recv_bytes          number 8    
 
-    ABORT - Abort sending credit to other peer
+    GIVE_CREDIT - Credit to send to the other peer
         sender              string      
+        credit              number 8    
+
+    ABORT - Abort sending credit to other peer
 
     TERMINATE - Terminate the worker thread
-        sender              string      
 */
 
 #define ZSYNC_CREDIT_MSG_VERSION            1
 
 #define ZSYNC_CREDIT_MSG_REQUEST            1
 #define ZSYNC_CREDIT_MSG_UPDATE             2
-#define ZSYNC_CREDIT_MSG_ABORT              3
-#define ZSYNC_CREDIT_MSG_TERMINATE          4
+#define ZSYNC_CREDIT_MSG_GIVE_CREDIT        3
+#define ZSYNC_CREDIT_MSG_ABORT              4
+#define ZSYNC_CREDIT_MSG_TERMINATE          5
 
 #ifdef __cplusplus
 extern "C" {
@@ -86,15 +89,19 @@ int
         char *sender,
         uint64_t recv_bytes);
     
+//  Send the GIVE_CREDIT to the output in one step
+int
+    zsync_credit_msg_send_give_credit (void *output,
+        char *sender,
+        uint64_t credit);
+    
 //  Send the ABORT to the output in one step
 int
-    zsync_credit_msg_send_abort (void *output,
-        char *sender);
+    zsync_credit_msg_send_abort (void *output);
     
 //  Send the TERMINATE to the output in one step
 int
-    zsync_credit_msg_send_terminate (void *output,
-        char *sender);
+    zsync_credit_msg_send_terminate (void *output);
     
 //  Duplicate the zsync_credit_msg message
 zsync_credit_msg_t *
@@ -135,6 +142,12 @@ uint64_t
     zsync_credit_msg_recv_bytes (zsync_credit_msg_t *self);
 void
     zsync_credit_msg_set_recv_bytes (zsync_credit_msg_t *self, uint64_t recv_bytes);
+
+//  Get/set the credit field
+uint64_t
+    zsync_credit_msg_credit (zsync_credit_msg_t *self);
+void
+    zsync_credit_msg_set_credit (zsync_credit_msg_t *self, uint64_t credit);
 
 //  Self test of this class
 int

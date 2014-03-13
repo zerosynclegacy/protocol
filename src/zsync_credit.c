@@ -89,6 +89,7 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
     uint64_t total_credit = TOTAL_CREDIT;
     zhash_t *peer_credit = zhash_new ();
     zsync_credit_msg_t *msg;
+    bool terminated = false;
     int rc;
 
     zpoller_t *poller = zpoller_new (pipe, NULL);
@@ -107,13 +108,18 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
             break;
         }
         
-        char *sender = zsync_credit_msg_sender (msg);
-       // Get credit information for sender
-        zsync_credit_t *credit = zhash_lookup (peer_credit, sender);
-        if (!credit) {
-           credit = zsync_credit_new ();
-           zhash_insert (peer_credit, sender, credit);
-           zhash_freefn (peer_credit, sender, s_destroy_credit_item);
+
+        char *sender;
+        zsync_credit_t *credit;
+        if (zsync_credit_msg_id (msg) != ZSYNC_CREDIT_MSG_TERMINATE) {
+            sender = zsync_credit_msg_sender (msg);
+            // Get credit information for sender
+            credit = zhash_lookup (peer_credit, sender);
+            if (!credit) {
+               credit = zsync_credit_new ();
+               zhash_insert (peer_credit, sender, credit);
+               zhash_freefn (peer_credit, sender, s_destroy_credit_item);
+            }
         }
         
         switch (zsync_credit_msg_id (msg)) {
@@ -134,10 +140,15 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
                 zmsg_t *tmsg = zmsg_new ();
                 zmsg_pushstr (tmsg, "OK");
                 zmsg_send (&tmsg, pipe);
+                terminated = true;
                 break;
              }
         }
-        zsync_credit_msg_destroy (&msg);
+
+        if (terminated) {
+            // Stop thread
+            break;
+        }
         
         if (total_credit >= CHUNK_SIZE) {
 
@@ -157,40 +168,30 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
                 else {
                     continue;
                 }
-                zmsg_t *cmsg = zmsg_new ();
-                rc = zs_msg_pack_give_credit (cmsg, new_credit);
-                assert (rc == 0);
-                zmsg_pushstr (cmsg, sender);
-                zmsg_send (&cmsg, pipe);
+                // Send credit update
+                zsync_credit_msg_send_give_credit (pipe, sender, new_credit);
+                // Ajust total credit and credited bytes
                 total_credit -= new_credit;
                 credit->credited_bytes += new_credit;
                 printf("[CR] [SEND] credit: %"PRId64", to %s\n", new_credit, sender);
             }
         }
+        // Cleanup
+        zsync_credit_msg_destroy (&msg);
     }
     zhash_destroy (&peer_credit);
     printf("[CR] stopped\n");
 }
 
 static void
-s_test_send_request (void *pipe, char *peer, uint64_t amount) {
-    zsync_credit_msg_send_request (pipe, peer, amount);    
-}
-
-static void
-s_test_send_update (void *pipe, char *peer, uint64_t amount) {
-    zsync_credit_msg_send_update (pipe, peer, amount);    
-}
-
-static void
-s_test_expect_credit (void *pipe, char *peer, uint64_t amount) 
+s_test_expect_credit (void *pipe, char *peer, uint64_t expected_credit) 
 {
-    zmsg_t *msg = zmsg_recv (pipe);
-    char *uuid = zmsg_popstr (msg);
-    zs_msg_t *zs_msg = zs_msg_unpack (msg);
-    printf ("[%s] expect: %"PRId64"; actual: %"PRId64"\n", uuid, amount, zs_msg_get_credit (zs_msg));
+    zsync_credit_msg_t *msg = zsync_credit_msg_recv (pipe);
+    char *uuid = zsync_credit_msg_sender (msg);
+    uint64_t actual_credit = zsync_credit_msg_credit (msg);
+    printf ("[%s] expect: %"PRId64"; actual: %"PRId64"\n", uuid, expected_credit, actual_credit);
     assert (streq (peer, uuid));
-    assert (amount == zs_msg_get_credit (zs_msg)); 
+    assert (expected_credit == actual_credit); 
 }
  
 void
@@ -205,35 +206,30 @@ zsync_credit_test ()
     char *peer2 = "0002";
 
     // Request from Peer 1
-    s_test_send_request (pipe, peer1, 310000);
+    zsync_credit_msg_send_request (pipe, peer1, 310000);    
     s_test_expect_credit (pipe, peer1, 300000);
-    s_test_send_update (pipe, peer1, 239000);
+    zsync_credit_msg_send_update (pipe, peer1, 239000);    
     zclock_sleep (100);                             // Give time for a message to arrive
     assert (zmsg_recv_nowait (pipe) == NULL);
-    s_test_send_update (pipe, peer1, 1000);
+    zsync_credit_msg_send_update (pipe, peer1, 1000);    
     s_test_expect_credit (pipe, peer1, 10000);
-    s_test_send_update (pipe, peer1, 70000);
+    zsync_credit_msg_send_update (pipe, peer1, 70000);    
     zclock_sleep (100);
     assert (zmsg_recv_nowait (pipe) == NULL);
 
     // Request from Peer 2
-    s_test_send_request (pipe, peer2, 650000);
+    zsync_credit_msg_send_request (pipe, peer2, 650000);    
     s_test_expect_credit (pipe, peer2, 300000);
-    s_test_send_update (pipe, peer2, 300000);
+    zsync_credit_msg_send_update (pipe, peer2, 300000);    
     s_test_expect_credit (pipe, peer2, 300000);
-    s_test_send_update (pipe, peer2, 300000);
+    zsync_credit_msg_send_update (pipe, peer2, 300000);    
     s_test_expect_credit (pipe, peer2, 50000);
-    s_test_send_update (pipe, peer2, 50000);
+    zsync_credit_msg_send_update (pipe, peer2, 50000);    
     zclock_sleep (100);
     assert (zmsg_recv_nowait (pipe) == NULL);
 
     // Terminate
-    zmsg_t *tmsg = zmsg_new ();
-    zmsg_addstr (tmsg, "TERMINATE");
-    zmsg_addstr (tmsg, "TERMINATE");
-    zmsg_send (&tmsg, pipe);
-    tmsg = zmsg_recv (pipe);
-    zmsg_destroy (&tmsg);
+    zsync_credit_msg_send_terminate (pipe);
 
     // Cleanup
     zctx_destroy (&ctx);
