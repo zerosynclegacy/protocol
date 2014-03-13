@@ -1,3 +1,0 @@
-[submodule "zcodec"]
-	path = zcodec
-	url = git@github.com:sappo/zcodec.git
