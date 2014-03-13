@@ -111,11 +111,11 @@ zsync_credit_msg_t *
 void
     zsync_credit_msg_dump (zsync_credit_msg_t *self);
 
-//  Get/set the message address
+//  Get/set the message routing id
 zframe_t *
-    zsync_credit_msg_address (zsync_credit_msg_t *self);
+    zsync_credit_msg_routing_id (zsync_credit_msg_t *self);
 void
-    zsync_credit_msg_set_address (zsync_credit_msg_t *self, zframe_t *address);
+    zsync_credit_msg_set_routing_id (zsync_credit_msg_t *self, zframe_t *routing_id);
 
 //  Get the zsync_credit_msg id and printable command
 int

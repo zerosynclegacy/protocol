@@ -81,4 +81,4 @@ AC_TYPE_UINT64_T
 AM_CONDITIONAL(INSTALL_MAN, test "x$zerosync_install_man" = "xyes")
 AM_CONDITIONAL(BUILD_DOC, test "x$zerosync_build_doc" = "xyes")
 
-AC_OUTPUT(Makefile src/Makefile doc/Makefile src/libzsync.pc)
+AC_OUTPUT(Makefile src/Makefile model/Makefile doc/Makefile src/libzsync.pc)

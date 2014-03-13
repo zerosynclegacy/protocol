@@ -36,7 +36,7 @@
 //  Structure of our class
 
 struct _zsync_credit_msg_t {
-    zframe_t *address;          //  Address of peer if any
+    zframe_t *routing_id;       //  Routing_id from ROUTER, if any
     int id;                     //  zsync_credit_msg message ID
     byte *needle;               //  Read/write pointer for serialization
     byte *ceiling;              //  Valid upper limit for read pointer
@@ -53,13 +53,13 @@ struct _zsync_credit_msg_t {
 #define STRING_MAX  255
 
 //  Put a block to the frame
-#define PUT_BLOCK(host,size) { \
+#define PUT_OCTETS(host,size) { \
     memcpy (self->needle, (host), size); \
     self->needle += size; \
     }
 
 //  Get a block from the frame
-#define GET_BLOCK(host,size) { \
+#define GET_OCTETS(host,size) { \
     if (self->needle + size > self->ceiling) \
         goto malformed; \
     memcpy ((host), self->needle, size); \
@@ -187,7 +187,7 @@ zsync_credit_msg_destroy (zsync_credit_msg_t **self_p)
         zsync_credit_msg_t *self = *self_p;
 
         //  Free class properties
-        zframe_destroy (&self->address);
+        zframe_destroy (&self->routing_id);
         free (self->sender);
 
         //  Free object itself
@@ -212,11 +212,11 @@ zsync_credit_msg_recv (void *input)
     //  Read valid message frame from socket; we loop over any
     //  garbage data we might receive from badly-connected peers
     while (true) {
-        //  If we're reading from a ROUTER socket, get address
+        //  If we're reading from a ROUTER socket, get routing_id
         if (zsocket_type (input) == ZMQ_ROUTER) {
-            zframe_destroy (&self->address);
-            self->address = zframe_recv (input);
-            if (!self->address)
+            zframe_destroy (&self->routing_id);
+            self->routing_id = zframe_recv (input);
+            if (!self->routing_id)
                 goto empty;         //  Interrupted
             if (!zsocket_rcvmore (input))
                 goto malformed;
@@ -356,7 +356,7 @@ zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
                 PUT_NUMBER1 (0);    //  Empty string
             PUT_NUMBER8 (self->req_bytes);
             break;
-            
+
         case ZSYNC_CREDIT_MSG_UPDATE:
             if (self->sender) {
                 PUT_STRING (self->sender);
@@ -365,7 +365,7 @@ zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
                 PUT_NUMBER1 (0);    //  Empty string
             PUT_NUMBER8 (self->recv_bytes);
             break;
-            
+
         case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
             if (self->sender) {
                 PUT_STRING (self->sender);
@@ -374,18 +374,18 @@ zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
                 PUT_NUMBER1 (0);    //  Empty string
             PUT_NUMBER8 (self->credit);
             break;
-            
+
         case ZSYNC_CREDIT_MSG_ABORT:
             break;
-            
+
         case ZSYNC_CREDIT_MSG_TERMINATE:
             break;
-            
+
     }
-    //  If we're sending to a ROUTER, we send the address first
+    //  If we're sending to a ROUTER, we send the routing_id first
     if (zsocket_type (output) == ZMQ_ROUTER) {
-        assert (self->address);
-        if (zframe_send (&self->address, output, ZFRAME_MORE)) {
+        assert (self->routing_id);
+        if (zframe_send (&self->routing_id, output, ZFRAME_MORE)) {
             zframe_destroy (&frame);
             zsync_credit_msg_destroy (self_p);
             return -1;
@@ -485,8 +485,8 @@ zsync_credit_msg_dup (zsync_credit_msg_t *self)
         return NULL;
         
     zsync_credit_msg_t *copy = zsync_credit_msg_new (self->id);
-    if (self->address)
-        copy->address = zframe_dup (self->address);
+    if (self->routing_id)
+        copy->routing_id = zframe_dup (self->routing_id);
 
     switch (self->id) {
         case ZSYNC_CREDIT_MSG_REQUEST:
@@ -564,21 +564,21 @@ zsync_credit_msg_dump (zsync_credit_msg_t *self)
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the message address
+//  Get/set the message routing_id
 
 zframe_t *
-zsync_credit_msg_address (zsync_credit_msg_t *self)
+zsync_credit_msg_routing_id (zsync_credit_msg_t *self)
 {
     assert (self);
-    return self->address;
+    return self->routing_id;
 }
 
 void
-zsync_credit_msg_set_address (zsync_credit_msg_t *self, zframe_t *address)
+zsync_credit_msg_set_routing_id (zsync_credit_msg_t *self, zframe_t *routing_id)
 {
-    if (self->address)
-        zframe_destroy (&self->address);
-    self->address = zframe_dup (address);
+    if (self->routing_id)
+        zframe_destroy (&self->routing_id);
+    self->routing_id = zframe_dup (routing_id);
 }
 
 
