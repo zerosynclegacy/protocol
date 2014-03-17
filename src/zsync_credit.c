@@ -2,7 +2,7 @@
     zsync_credit - Credit Manager 
 
    -------------------------------------------------------------------------
-   Copyright (c) 2013 Kevin Sapper
+   Copyright (c) 2013 - 2014 Kevin Sapper
    Copyright other contributors as noted in the AUTHORS file.
    
    This file is part of ZeroSync, see http://zerosync.org.
@@ -38,9 +38,9 @@
 #define TOTAL_CREDIT 1024 * 1024 * 100; // -> 100 MB
 
 struct _zsync_credit_t {
-    uint64_t requested_bytes;  // Bytes requests for all files
-    uint64_t credited_bytes;  // Bytes credited to other peer 
-    uint64_t received_bytes;  // Bytes received from other peer 
+    uint64_t requested_bytes;   // Bytes requests for all files
+    uint64_t credited_bytes;    // Bytes credited to other peer 
+    uint64_t received_bytes;    // Bytes received from other peer 
 };
 
 typedef struct _zsync_credit_t zsync_credit_t;
@@ -169,7 +169,9 @@ zsync_credit_manager_engine (void *args, zctx_t *ctx, void *pipe)
                     continue;
                 }
                 // Send credit update
-                zsync_credit_msg_send_give_credit (pipe, sender, new_credit);
+                zmsg_t *zmsg = zmsg_new ();
+                zs_msg_pack_give_credit (zmsg, new_credit);
+                zsync_credit_msg_send_give_credit (pipe, sender, zmsg);
                 // Ajust total credit and credited bytes
                 total_credit -= new_credit;
                 credit->credited_bytes += new_credit;
@@ -187,8 +189,10 @@ static void
 s_test_expect_credit (void *pipe, char *peer, uint64_t expected_credit) 
 {
     zsync_credit_msg_t *msg = zsync_credit_msg_recv (pipe);
-    char *uuid = zsync_credit_msg_sender (msg);
-    uint64_t actual_credit = zsync_credit_msg_credit (msg);
+    char *uuid = zsync_credit_msg_receiver (msg);
+    zmsg_t *zmsg = zsync_credit_msg_credit (msg);
+    zs_msg_t *zs_msg = zs_msg_unpack (zmsg);
+    uint64_t actual_credit = zs_msg_get_credit (zs_msg);
     printf ("[%s] expect: %"PRId64"; actual: %"PRId64"\n", uuid, expected_credit, actual_credit);
     assert (streq (peer, uuid));
     assert (expected_credit == actual_credit); 

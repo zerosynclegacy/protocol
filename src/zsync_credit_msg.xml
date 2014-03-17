@@ -1,0 +1,48 @@
+<?xml version = "1.0" encoding = "utf-8" ?>
+<class 
+    xmlns="http://zeromq.org/2014/gsl/codec/ns"
+    name = "zsync_credit_msg" 
+    signature = "1" 
+    title = "credit manager api"
+    script = "zproto_codec_c"
+    header = "../include"
+    source = "."
+    >
+This is the internal worker protocol for communication with credit managers.
+
+<include filename = "license.xml" />
+
+<!-- Protocol constants -->
+<define name = "VERSION" value = "1" />
+
+<!-- Header for all messages -->
+<header>
+</header>
+
+<message name = "REQUEST" id = "1">
+    <field name = "sender" type = "string" />
+    <field name = "req_bytes" type = "number" size = "8" />
+Bytes requested from other peer
+</message>
+
+<message name = "UPDATE" id = "2">
+    <field name = "sender" type = "string" />
+    <field name = "recv_bytes" type = "number" size = "8" />
+Bytes received from other peer
+</message>
+
+<message name = "GIVE_CREDIT" id = "3">
+    <field name = "receiver" type = "string" />
+    <field name = "credit" type = "msg" />
+Sends an encoded credit to be forwarded to the receiver.
+</message>
+
+<message name = "ABORT" id = "4">
+Abort sending credit to other peer 
+</message>
+
+<message name = "TERMINATE" id = "5">
+Terminate the worker thread
+</message>
+
+</class>

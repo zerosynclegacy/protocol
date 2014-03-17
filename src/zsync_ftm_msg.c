@@ -1,7 +1,7 @@
 /*  =========================================================================
-    zsync_credit_msg - credit manager api
+    zsync_ftm_msg - file transfer manager api
 
-    Codec class for zsync_credit_msg.
+    Codec class for zsync_ftm_msg.
 
     ** WARNING *************************************************************
     THIS SOURCE FILE IS 100% GENERATED. If you edit this file, you will lose
@@ -9,7 +9,7 @@
     statements. DO NOT MAKE ANY CHANGES YOU WISH TO KEEP. The correct places
     for commits are:
 
-    * The XML model used for this code generation: zsync_credit_msg
+    * The XML model used for this code generation: zsync_ftm_msg
     * The code generation script that built this file: zproto_codec_c
     ************************************************************************
     
@@ -35,26 +35,26 @@
 
 /*
 @header
-    zsync_credit_msg - credit manager api
+    zsync_ftm_msg - file transfer manager api
 @discuss
 @end
 */
 
 #include <czmq.h>
-#include "../include/zsync_credit_msg.h"
+#include "../include/zsync_ftm_msg.h"
 
 //  Structure of our class
 
-struct _zsync_credit_msg_t {
+struct _zsync_ftm_msg_t {
     zframe_t *routing_id;       //  Routing_id from ROUTER, if any
-    int id;                     //  zsync_credit_msg message ID
+    int id;                     //  zsync_ftm_msg message ID
     byte *needle;               //  Read/write pointer for serialization
     byte *ceiling;              //  Valid upper limit for read pointer
-    char *sender;               //  
-    uint64_t req_bytes;         //  
-    uint64_t recv_bytes;        //  
-    char *receiver;             //  
-    zmsg_t *credit;             //  
+    char *sender;               //  UUID that identifies the sender
+    zlist_t *path;              //  
+    uint64_t credit;            //  
+    char *receiver;             //  UUID that identifies the receiver
+    zmsg_t *chunk;              //  
 };
 
 //  --------------------------------------------------------------------------
@@ -194,32 +194,34 @@ struct _zsync_credit_msg_t {
 
 
 //  --------------------------------------------------------------------------
-//  Create a new zsync_credit_msg
+//  Create a new zsync_ftm_msg
 
-zsync_credit_msg_t *
-zsync_credit_msg_new (int id)
+zsync_ftm_msg_t *
+zsync_ftm_msg_new (int id)
 {
-    zsync_credit_msg_t *self = (zsync_credit_msg_t *) zmalloc (sizeof (zsync_credit_msg_t));
+    zsync_ftm_msg_t *self = (zsync_ftm_msg_t *) zmalloc (sizeof (zsync_ftm_msg_t));
     self->id = id;
     return self;
 }
 
 
 //  --------------------------------------------------------------------------
-//  Destroy the zsync_credit_msg
+//  Destroy the zsync_ftm_msg
 
 void
-zsync_credit_msg_destroy (zsync_credit_msg_t **self_p)
+zsync_ftm_msg_destroy (zsync_ftm_msg_t **self_p)
 {
     assert (self_p);
     if (*self_p) {
-        zsync_credit_msg_t *self = *self_p;
+        zsync_ftm_msg_t *self = *self_p;
 
         //  Free class properties
         zframe_destroy (&self->routing_id);
         free (self->sender);
+        if (self->path)
+            zlist_destroy (&self->path);
         free (self->receiver);
-        zmsg_destroy (&self->credit);
+        zmsg_destroy (&self->chunk);
 
         //  Free object itself
         free (self);
@@ -229,12 +231,12 @@ zsync_credit_msg_destroy (zsync_credit_msg_t **self_p)
 
 
 //  --------------------------------------------------------------------------
-//  Parse a zsync_credit_msg from zmsg_t. Returns new object or NULL if error.
+//  Parse a zsync_ftm_msg from zmsg_t. Returns new object or NULL if error.
 
-zsync_credit_msg_t *
-zsync_credit_msg_decode (zmsg_t *msg)
+zsync_ftm_msg_t *
+zsync_ftm_msg_decode (zmsg_t *msg)
 {
-    zsync_credit_msg_t *self = zsync_credit_msg_new (0);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (0);
     zframe_t *frame = NULL;
     //  Verify message is present
     if (!msg)
@@ -257,32 +259,56 @@ zsync_credit_msg_decode (zmsg_t *msg)
     GET_NUMBER1 (self->id);
 
     switch (self->id) {
-        case ZSYNC_CREDIT_MSG_REQUEST:
+        case ZSYNC_FTM_MSG_REQUEST:
             GET_STRING (self->sender);
-            GET_NUMBER8 (self->req_bytes);
-            break;
-
-        case ZSYNC_CREDIT_MSG_UPDATE:
-            GET_STRING (self->sender);
-            GET_NUMBER8 (self->recv_bytes);
-            break;
-
-        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
-            GET_STRING (self->receiver);
-            //  Get zero or more remaining frames,
-            //  leave current frame untouched
-            self->credit = zmsg_new ();
-            zframe_t *credit_part = zmsg_pop (msg);
-            while (credit_part) {
-                zmsg_add (self->credit, credit_part);
-                credit_part = zmsg_pop (msg);
+            {
+                size_t list_size;
+                GET_NUMBER4 (list_size);
+                self->path = zlist_new ();
+                zlist_autofree (self->path);
+                while (list_size--) {
+                    char *string;
+                    GET_LONGSTR (string);
+                    zlist_append (self->path, string);
+                    free (string);
+                }
             }
             break;
 
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_FTM_MSG_CREDIT:
+            GET_STRING (self->sender);
+            GET_NUMBER8 (self->credit);
             break;
 
-        case ZSYNC_CREDIT_MSG_TERMINATE:
+        case ZSYNC_FTM_MSG_CHUNK:
+            GET_STRING (self->receiver);
+            //  Get zero or more remaining frames,
+            //  leave current frame untouched
+            self->chunk = zmsg_new ();
+            zframe_t *chunk_part = zmsg_pop (msg);
+            while (chunk_part) {
+                zmsg_add (self->chunk, chunk_part);
+                chunk_part = zmsg_pop (msg);
+            }
+            break;
+
+        case ZSYNC_FTM_MSG_ABORT:
+            GET_STRING (self->sender);
+            {
+                size_t list_size;
+                GET_NUMBER4 (list_size);
+                self->path = zlist_new ();
+                zlist_autofree (self->path);
+                while (list_size--) {
+                    char *string;
+                    GET_LONGSTR (string);
+                    zlist_append (self->path, string);
+                    free (string);
+                }
+            }
+            break;
+
+        case ZSYNC_FTM_MSG_TERMINATE:
             break;
 
         default:
@@ -299,19 +325,19 @@ zsync_credit_msg_decode (zmsg_t *msg)
         if (frame)
             zframe_destroy (&frame);
         zmsg_destroy (&msg);
-        zsync_credit_msg_destroy (&self);
+        zsync_ftm_msg_destroy (&self);
         return (NULL);
 }
 
 //  --------------------------------------------------------------------------
-//  Receive and parse a zsync_credit_msg from the socket. Returns new object or
+//  Receive and parse a zsync_ftm_msg from the socket. Returns new object or
 //  NULL if error. Will block if there's no message waiting.
 
-zsync_credit_msg_t *
-zsync_credit_msg_recv (void *input)
+zsync_ftm_msg_t *
+zsync_ftm_msg_recv (void *input)
 {
     assert (input);
-    zsync_credit_msg_t *self = zsync_credit_msg_new (0);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (0);
     zmsg_t *msg = NULL;
     //  Read message from input
     msg = zmsg_recv (input);
@@ -328,20 +354,20 @@ zsync_credit_msg_recv (void *input)
             return (NULL);      //  Malformed
     }
 
-    //  Parse zmsg to zsync_credit_msg
-    self = zsync_credit_msg_decode (msg);
+    //  Parse zmsg to zsync_ftm_msg
+    self = zsync_ftm_msg_decode (msg);
     return self;
 }
 
 //  --------------------------------------------------------------------------
-//  Receive and parse a zsync_credit_msg from the socket. Returns new object, 
+//  Receive and parse a zsync_ftm_msg from the socket. Returns new object, 
 //  or NULL either if there was no input waiting, or the recv was interrupted.
 
-zsync_credit_msg_t *
-zsync_credit_msg_recv_nowait (void *input)
+zsync_ftm_msg_t *
+zsync_ftm_msg_recv_nowait (void *input)
 {
     assert (input);
-    zsync_credit_msg_t *self = zsync_credit_msg_new (0);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (0);
     zmsg_t *msg = NULL;
     //  Read message from input
     msg = zmsg_recv_nowait (input);
@@ -358,54 +384,76 @@ zsync_credit_msg_recv_nowait (void *input)
             return (NULL);      //  Malformed
     }
 
-    //  Parse zmsg to zsync_credit_msg
-    self = zsync_credit_msg_decode (msg);
+    //  Parse zmsg to zsync_ftm_msg
+    self = zsync_ftm_msg_decode (msg);
     return self;
 }
 
 
 
 //  --------------------------------------------------------------------------
-//  Encode zsync_credit_msg into zmsg and destroy it. Returns a newly created 
+//  Encode zsync_ftm_msg into zmsg and destroy it. Returns a newly created 
 //  object or NULL if error. 
 
 zmsg_t *
-zsync_credit_msg_encode (zsync_credit_msg_t *self)
+zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
 {
     assert (self);
     zmsg_t *msg = zmsg_new ();
 
     size_t frame_size = 2 + 1;          //  Signature and message ID
     switch (self->id) {
-        case ZSYNC_CREDIT_MSG_REQUEST:
+        case ZSYNC_FTM_MSG_REQUEST:
             //  sender is a string with 1-byte length
             frame_size++;       //  Size is one octet
             if (self->sender)
                 frame_size += strlen (self->sender);
-            //  req_bytes is a 8-byte integer
-            frame_size += 8;
+            //  path is an array of strings
+            frame_size += 4;    //  Size is 4 octets
+            if (self->path) {
+                //  Add up size of list contents
+                char *path = (char *) zlist_first (self->path);
+                while (path) {
+                    frame_size += 4 + strlen (path);
+                    path = (char *) zlist_next (self->path);
+                }
+            }
             break;
             
-        case ZSYNC_CREDIT_MSG_UPDATE:
+        case ZSYNC_FTM_MSG_CREDIT:
             //  sender is a string with 1-byte length
             frame_size++;       //  Size is one octet
             if (self->sender)
                 frame_size += strlen (self->sender);
-            //  recv_bytes is a 8-byte integer
+            //  credit is a 8-byte integer
             frame_size += 8;
             break;
             
-        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
+        case ZSYNC_FTM_MSG_CHUNK:
             //  receiver is a string with 1-byte length
             frame_size++;       //  Size is one octet
             if (self->receiver)
                 frame_size += strlen (self->receiver);
             break;
             
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_FTM_MSG_ABORT:
+            //  sender is a string with 1-byte length
+            frame_size++;       //  Size is one octet
+            if (self->sender)
+                frame_size += strlen (self->sender);
+            //  path is an array of strings
+            frame_size += 4;    //  Size is 4 octets
+            if (self->path) {
+                //  Add up size of list contents
+                char *path = (char *) zlist_first (self->path);
+                while (path) {
+                    frame_size += 4 + strlen (path);
+                    path = (char *) zlist_next (self->path);
+                }
+            }
             break;
             
-        case ZSYNC_CREDIT_MSG_TERMINATE:
+        case ZSYNC_FTM_MSG_TERMINATE:
             break;
             
         default:
@@ -420,25 +468,34 @@ zsync_credit_msg_encode (zsync_credit_msg_t *self)
     PUT_NUMBER1 (self->id);
 
     switch (self->id) {
-        case ZSYNC_CREDIT_MSG_REQUEST:
+        case ZSYNC_FTM_MSG_REQUEST:
             if (self->sender) {
                 PUT_STRING (self->sender);
             }
             else
                 PUT_NUMBER1 (0);    //  Empty string
-            PUT_NUMBER8 (self->req_bytes);
+            if (self->path) {
+                PUT_NUMBER4 (zlist_size (self->path));
+                char *path = (char *) zlist_first (self->path);
+                while (path) {
+                    PUT_LONGSTR (path);
+                    path = (char *) zlist_next (self->path);
+                }
+            }
+            else
+                PUT_NUMBER4 (0);    //  Empty string array
             break;
 
-        case ZSYNC_CREDIT_MSG_UPDATE:
+        case ZSYNC_FTM_MSG_CREDIT:
             if (self->sender) {
                 PUT_STRING (self->sender);
             }
             else
                 PUT_NUMBER1 (0);    //  Empty string
-            PUT_NUMBER8 (self->recv_bytes);
+            PUT_NUMBER8 (self->credit);
             break;
 
-        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
+        case ZSYNC_FTM_MSG_CHUNK:
             if (self->receiver) {
                 PUT_STRING (self->receiver);
             }
@@ -446,48 +503,63 @@ zsync_credit_msg_encode (zsync_credit_msg_t *self)
                 PUT_NUMBER1 (0);    //  Empty string
             break;
 
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_FTM_MSG_ABORT:
+            if (self->sender) {
+                PUT_STRING (self->sender);
+            }
+            else
+                PUT_NUMBER1 (0);    //  Empty string
+            if (self->path) {
+                PUT_NUMBER4 (zlist_size (self->path));
+                char *path = (char *) zlist_first (self->path);
+                while (path) {
+                    PUT_LONGSTR (path);
+                    path = (char *) zlist_next (self->path);
+                }
+            }
+            else
+                PUT_NUMBER4 (0);    //  Empty string array
             break;
 
-        case ZSYNC_CREDIT_MSG_TERMINATE:
+        case ZSYNC_FTM_MSG_TERMINATE:
             break;
 
     }
     //  Now send the data frame
     if (zmsg_append (msg, &frame)) {
         zmsg_destroy (&msg);
-        zsync_credit_msg_destroy (&self);
+        zsync_ftm_msg_destroy (&self);
         return NULL;
     }
-    //  Now send the credit field if set
-    if (self->id == ZSYNC_CREDIT_MSG_GIVE_CREDIT) {
-        zframe_t *credit_part = zmsg_pop (self->credit);
-        while (credit_part) {
-            zmsg_append (msg, &credit_part);
-            credit_part = zmsg_pop (self->credit);
+    //  Now send the chunk field if set
+    if (self->id == ZSYNC_FTM_MSG_CHUNK) {
+        zframe_t *chunk_part = zmsg_pop (self->chunk);
+        while (chunk_part) {
+            zmsg_append (msg, &chunk_part);
+            chunk_part = zmsg_pop (self->chunk);
         }
     }
-    //  Destroy zsync_credit_msg object
-    zsync_credit_msg_destroy (&self);
+    //  Destroy zsync_ftm_msg object
+    zsync_ftm_msg_destroy (&self);
     return msg;
 
 }
 
 //  --------------------------------------------------------------------------
-//  Send the zsync_credit_msg to the socket, and destroy it
+//  Send the zsync_ftm_msg to the socket, and destroy it
 //  Returns 0 if OK, else -1
 
 int
-zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
+zsync_ftm_msg_send (zsync_ftm_msg_t **self_p, void *output)
 {
     assert (self_p);
     assert (*self_p);
     assert (output);
 
-    zsync_credit_msg_t *self = *self_p;
+    zsync_ftm_msg_t *self = *self_p;
     zmsg_t *msg = NULL;
-    //  Encode zsync_credit_msg into zmsg.
-    msg = zsync_credit_msg_encode (self);
+    //  Encode zsync_ftm_msg into zmsg.
+    msg = zsync_ftm_msg_encode (self);
 
     //  If we're sending to a ROUTER, we send the routing_id first
     if (zsocket_type (output) == ZMQ_ROUTER) {
@@ -505,15 +577,15 @@ zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output)
 
 
 //  --------------------------------------------------------------------------
-//  Send the zsync_credit_msg to the output, and do not destroy it
+//  Send the zsync_ftm_msg to the output, and do not destroy it
 
 int
-zsync_credit_msg_send_again (zsync_credit_msg_t *self, void *output)
+zsync_ftm_msg_send_again (zsync_ftm_msg_t *self, void *output)
 {
     assert (self);
     assert (output);
-    self = zsync_credit_msg_dup (self);
-    return zsync_credit_msg_send (&self, output);
+    self = zsync_ftm_msg_dup (self);
+    return zsync_ftm_msg_send (&self, output);
 }
 
 
@@ -521,47 +593,47 @@ zsync_credit_msg_send_again (zsync_credit_msg_t *self, void *output)
 //  Send the REQUEST to the socket in one step
 
 int
-zsync_credit_msg_send_request (
+zsync_ftm_msg_send_request (
     void *output,
     char *sender,
-    uint64_t req_bytes)
+    zlist_t *path)
 {
-    zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_REQUEST);
-    zsync_credit_msg_set_sender (self, sender);
-    zsync_credit_msg_set_req_bytes (self, req_bytes);
-    return zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_REQUEST);
+    zsync_ftm_msg_set_sender (self, sender);
+    zsync_ftm_msg_set_path (self, zlist_dup (path));
+    return zsync_ftm_msg_send (&self, output);
 }
 
 
 //  --------------------------------------------------------------------------
-//  Send the UPDATE to the socket in one step
+//  Send the CREDIT to the socket in one step
 
 int
-zsync_credit_msg_send_update (
+zsync_ftm_msg_send_credit (
     void *output,
     char *sender,
-    uint64_t recv_bytes)
+    uint64_t credit)
 {
-    zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_UPDATE);
-    zsync_credit_msg_set_sender (self, sender);
-    zsync_credit_msg_set_recv_bytes (self, recv_bytes);
-    return zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_CREDIT);
+    zsync_ftm_msg_set_sender (self, sender);
+    zsync_ftm_msg_set_credit (self, credit);
+    return zsync_ftm_msg_send (&self, output);
 }
 
 
 //  --------------------------------------------------------------------------
-//  Send the GIVE_CREDIT to the socket in one step
+//  Send the CHUNK to the socket in one step
 
 int
-zsync_credit_msg_send_give_credit (
+zsync_ftm_msg_send_chunk (
     void *output,
     char *receiver,
-    zmsg_t *credit)
+    zmsg_t *chunk)
 {
-    zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_GIVE_CREDIT);
-    zsync_credit_msg_set_receiver (self, receiver);
-    zsync_credit_msg_set_credit (self, zmsg_dup (credit));
-    return zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_CHUNK);
+    zsync_ftm_msg_set_receiver (self, receiver);
+    zsync_ftm_msg_set_chunk (self, zmsg_dup (chunk));
+    return zsync_ftm_msg_send (&self, output);
 }
 
 
@@ -569,11 +641,15 @@ zsync_credit_msg_send_give_credit (
 //  Send the ABORT to the socket in one step
 
 int
-zsync_credit_msg_send_abort (
-    void *output)
+zsync_ftm_msg_send_abort (
+    void *output,
+    char *sender,
+    zlist_t *path)
 {
-    zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_ABORT);
-    return zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_ABORT);
+    zsync_ftm_msg_set_sender (self, sender);
+    zsync_ftm_msg_set_path (self, zlist_dup (path));
+    return zsync_ftm_msg_send (&self, output);
 }
 
 
@@ -581,47 +657,49 @@ zsync_credit_msg_send_abort (
 //  Send the TERMINATE to the socket in one step
 
 int
-zsync_credit_msg_send_terminate (
+zsync_ftm_msg_send_terminate (
     void *output)
 {
-    zsync_credit_msg_t *self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_TERMINATE);
-    return zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_TERMINATE);
+    return zsync_ftm_msg_send (&self, output);
 }
 
 
 //  --------------------------------------------------------------------------
-//  Duplicate the zsync_credit_msg message
+//  Duplicate the zsync_ftm_msg message
 
-zsync_credit_msg_t *
-zsync_credit_msg_dup (zsync_credit_msg_t *self)
+zsync_ftm_msg_t *
+zsync_ftm_msg_dup (zsync_ftm_msg_t *self)
 {
     if (!self)
         return NULL;
         
-    zsync_credit_msg_t *copy = zsync_credit_msg_new (self->id);
+    zsync_ftm_msg_t *copy = zsync_ftm_msg_new (self->id);
     if (self->routing_id)
         copy->routing_id = zframe_dup (self->routing_id);
 
     switch (self->id) {
-        case ZSYNC_CREDIT_MSG_REQUEST:
+        case ZSYNC_FTM_MSG_REQUEST:
             copy->sender = self->sender? strdup (self->sender): NULL;
-            copy->req_bytes = self->req_bytes;
+            copy->path = self->path? zlist_dup (self->path): NULL;
             break;
 
-        case ZSYNC_CREDIT_MSG_UPDATE:
+        case ZSYNC_FTM_MSG_CREDIT:
             copy->sender = self->sender? strdup (self->sender): NULL;
-            copy->recv_bytes = self->recv_bytes;
+            copy->credit = self->credit;
             break;
 
-        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
+        case ZSYNC_FTM_MSG_CHUNK:
             copy->receiver = self->receiver? strdup (self->receiver): NULL;
-            copy->credit = self->credit? zmsg_dup (self->credit): NULL;
+            copy->chunk = self->chunk? zmsg_dup (self->chunk): NULL;
             break;
 
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_FTM_MSG_ABORT:
+            copy->sender = self->sender? strdup (self->sender): NULL;
+            copy->path = self->path? zlist_dup (self->path): NULL;
             break;
 
-        case ZSYNC_CREDIT_MSG_TERMINATE:
+        case ZSYNC_FTM_MSG_TERMINATE:
             break;
 
     }
@@ -634,47 +712,68 @@ zsync_credit_msg_dup (zsync_credit_msg_t *self)
 //  Print contents of message to stdout
 
 void
-zsync_credit_msg_dump (zsync_credit_msg_t *self)
+zsync_ftm_msg_dump (zsync_ftm_msg_t *self)
 {
     assert (self);
     switch (self->id) {
-        case ZSYNC_CREDIT_MSG_REQUEST:
+        case ZSYNC_FTM_MSG_REQUEST:
             puts ("REQUEST:");
             if (self->sender)
                 printf ("    sender='%s'\n", self->sender);
             else
                 printf ("    sender=\n");
-            printf ("    req_bytes=%ld\n", (long) self->req_bytes);
+            printf ("    path={");
+            if (self->path) {
+                char *path = (char *) zlist_first (self->path);
+                while (path) {
+                    printf (" '%s'", path);
+                    path = (char *) zlist_next (self->path);
+                }
+            }
+            printf (" }\n");
             break;
             
-        case ZSYNC_CREDIT_MSG_UPDATE:
-            puts ("UPDATE:");
+        case ZSYNC_FTM_MSG_CREDIT:
+            puts ("CREDIT:");
             if (self->sender)
                 printf ("    sender='%s'\n", self->sender);
             else
                 printf ("    sender=\n");
-            printf ("    recv_bytes=%ld\n", (long) self->recv_bytes);
+            printf ("    credit=%ld\n", (long) self->credit);
             break;
             
-        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
-            puts ("GIVE_CREDIT:");
+        case ZSYNC_FTM_MSG_CHUNK:
+            puts ("CHUNK:");
             if (self->receiver)
                 printf ("    receiver='%s'\n", self->receiver);
             else
                 printf ("    receiver=\n");
-            printf ("    credit={\n");
-            if (self->credit)
-                zmsg_dump (self->credit);
+            printf ("    chunk={\n");
+            if (self->chunk)
+                zmsg_dump (self->chunk);
             else
                 printf ("(NULL)\n");
             printf ("    }\n");
             break;
             
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_FTM_MSG_ABORT:
             puts ("ABORT:");
+            if (self->sender)
+                printf ("    sender='%s'\n", self->sender);
+            else
+                printf ("    sender=\n");
+            printf ("    path={");
+            if (self->path) {
+                char *path = (char *) zlist_first (self->path);
+                while (path) {
+                    printf (" '%s'", path);
+                    path = (char *) zlist_next (self->path);
+                }
+            }
+            printf (" }\n");
             break;
             
-        case ZSYNC_CREDIT_MSG_TERMINATE:
+        case ZSYNC_FTM_MSG_TERMINATE:
             puts ("TERMINATE:");
             break;
             
@@ -686,14 +785,14 @@ zsync_credit_msg_dump (zsync_credit_msg_t *self)
 //  Get/set the message routing_id
 
 zframe_t *
-zsync_credit_msg_routing_id (zsync_credit_msg_t *self)
+zsync_ftm_msg_routing_id (zsync_ftm_msg_t *self)
 {
     assert (self);
     return self->routing_id;
 }
 
 void
-zsync_credit_msg_set_routing_id (zsync_credit_msg_t *self, zframe_t *routing_id)
+zsync_ftm_msg_set_routing_id (zsync_ftm_msg_t *self, zframe_t *routing_id)
 {
     if (self->routing_id)
         zframe_destroy (&self->routing_id);
@@ -702,17 +801,17 @@ zsync_credit_msg_set_routing_id (zsync_credit_msg_t *self, zframe_t *routing_id)
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the zsync_credit_msg id
+//  Get/set the zsync_ftm_msg id
 
 int
-zsync_credit_msg_id (zsync_credit_msg_t *self)
+zsync_ftm_msg_id (zsync_ftm_msg_t *self)
 {
     assert (self);
     return self->id;
 }
 
 void
-zsync_credit_msg_set_id (zsync_credit_msg_t *self, int id)
+zsync_ftm_msg_set_id (zsync_ftm_msg_t *self, int id)
 {
     self->id = id;
 }
@@ -721,23 +820,23 @@ zsync_credit_msg_set_id (zsync_credit_msg_t *self, int id)
 //  Return a printable command string
 
 char *
-zsync_credit_msg_command (zsync_credit_msg_t *self)
+zsync_ftm_msg_command (zsync_ftm_msg_t *self)
 {
     assert (self);
     switch (self->id) {
-        case ZSYNC_CREDIT_MSG_REQUEST:
+        case ZSYNC_FTM_MSG_REQUEST:
             return ("REQUEST");
             break;
-        case ZSYNC_CREDIT_MSG_UPDATE:
-            return ("UPDATE");
+        case ZSYNC_FTM_MSG_CREDIT:
+            return ("CREDIT");
             break;
-        case ZSYNC_CREDIT_MSG_GIVE_CREDIT:
-            return ("GIVE_CREDIT");
+        case ZSYNC_FTM_MSG_CHUNK:
+            return ("CHUNK");
             break;
-        case ZSYNC_CREDIT_MSG_ABORT:
+        case ZSYNC_FTM_MSG_ABORT:
             return ("ABORT");
             break;
-        case ZSYNC_CREDIT_MSG_TERMINATE:
+        case ZSYNC_FTM_MSG_TERMINATE:
             return ("TERMINATE");
             break;
     }
@@ -748,14 +847,14 @@ zsync_credit_msg_command (zsync_credit_msg_t *self)
 //  Get/set the sender field
 
 char *
-zsync_credit_msg_sender (zsync_credit_msg_t *self)
+zsync_ftm_msg_sender (zsync_ftm_msg_t *self)
 {
     assert (self);
     return self->sender;
 }
 
 void
-zsync_credit_msg_set_sender (zsync_credit_msg_t *self, char *format, ...)
+zsync_ftm_msg_set_sender (zsync_ftm_msg_t *self, char *format, ...)
 {
     //  Format sender from provided arguments
     assert (self);
@@ -768,38 +867,90 @@ zsync_credit_msg_set_sender (zsync_credit_msg_t *self, char *format, ...)
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the req_bytes field
+//  Get/set the path field
 
-uint64_t
-zsync_credit_msg_req_bytes (zsync_credit_msg_t *self)
+zlist_t *
+zsync_ftm_msg_path (zsync_ftm_msg_t *self)
 {
     assert (self);
-    return self->req_bytes;
+    return self->path;
+}
+
+//  Greedy function, takes ownership of path; if you don't want that
+//  then use zlist_dup() to pass a copy of path
+
+void
+zsync_ftm_msg_set_path (zsync_ftm_msg_t *self, zlist_t *path)
+{
+    assert (self);
+    zlist_destroy (&self->path);
+    self->path = path;
+}
+
+//  --------------------------------------------------------------------------
+//  Iterate through the path field, and append a path value
+
+char *
+zsync_ftm_msg_path_first (zsync_ftm_msg_t *self)
+{
+    assert (self);
+    if (self->path)
+        return (char *) (zlist_first (self->path));
+    else
+        return NULL;
+}
+
+char *
+zsync_ftm_msg_path_next (zsync_ftm_msg_t *self)
+{
+    assert (self);
+    if (self->path)
+        return (char *) (zlist_next (self->path));
+    else
+        return NULL;
 }
 
 void
-zsync_credit_msg_set_req_bytes (zsync_credit_msg_t *self, uint64_t req_bytes)
+zsync_ftm_msg_path_append (zsync_ftm_msg_t *self, char *format, ...)
 {
+    //  Format into newly allocated string
     assert (self);
-    self->req_bytes = req_bytes;
+    va_list argptr;
+    va_start (argptr, format);
+    char *string = zsys_vprintf (format, argptr);
+    va_end (argptr);
+
+    //  Attach string to list
+    if (!self->path) {
+        self->path = zlist_new ();
+        zlist_autofree (self->path);
+    }
+    zlist_append (self->path, string);
+    free (string);
+}
+
+size_t
+zsync_ftm_msg_path_size (zsync_ftm_msg_t *self)
+{
+    return zlist_size (self->path);
 }
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the recv_bytes field
+//  Get/set the credit field
 
 uint64_t
-zsync_credit_msg_recv_bytes (zsync_credit_msg_t *self)
+zsync_ftm_msg_credit (zsync_ftm_msg_t *self)
 {
     assert (self);
-    return self->recv_bytes;
+    return self->credit;
 }
 
 void
-zsync_credit_msg_set_recv_bytes (zsync_credit_msg_t *self, uint64_t recv_bytes)
+zsync_ftm_msg_set_credit (zsync_ftm_msg_t *self, uint64_t credit)
 {
     assert (self);
-    self->recv_bytes = recv_bytes;
+    self->credit = credit;
 }
 
 
@@ -807,14 +958,14 @@ zsync_credit_msg_set_recv_bytes (zsync_credit_msg_t *self, uint64_t recv_bytes)
 //  Get/set the receiver field
 
 char *
-zsync_credit_msg_receiver (zsync_credit_msg_t *self)
+zsync_ftm_msg_receiver (zsync_ftm_msg_t *self)
 {
     assert (self);
     return self->receiver;
 }
 
 void
-zsync_credit_msg_set_receiver (zsync_credit_msg_t *self, char *format, ...)
+zsync_ftm_msg_set_receiver (zsync_ftm_msg_t *self, char *format, ...)
 {
     //  Format receiver from provided arguments
     assert (self);
@@ -827,23 +978,23 @@ zsync_credit_msg_set_receiver (zsync_credit_msg_t *self, char *format, ...)
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the credit field
+//  Get/set the chunk field
 
 zmsg_t *
-zsync_credit_msg_credit (zsync_credit_msg_t *self)
+zsync_ftm_msg_chunk (zsync_ftm_msg_t *self)
 {
     assert (self);
-    return self->credit;
+    return self->chunk;
 }
 
 //  Takes ownership of supplied msg
 void
-zsync_credit_msg_set_credit (zsync_credit_msg_t *self, zmsg_t *msg)
+zsync_ftm_msg_set_chunk (zsync_ftm_msg_t *self, zmsg_t *msg)
 {
     assert (self);
-    if (self->credit)
-        zmsg_destroy (&self->credit);
-    self->credit = msg;
+    if (self->chunk)
+        zmsg_destroy (&self->chunk);
+    self->chunk = msg;
 }
 
 
@@ -851,15 +1002,15 @@ zsync_credit_msg_set_credit (zsync_credit_msg_t *self, zmsg_t *msg)
 //  Selftest
 
 int
-zsync_credit_msg_test (bool verbose)
+zsync_ftm_msg_test (bool verbose)
 {
-    printf (" * zsync_credit_msg: ");
+    printf (" * zsync_ftm_msg: ");
 
     //  @selftest
     //  Simple create/destroy test
-    zsync_credit_msg_t *self = zsync_credit_msg_new (0);
+    zsync_ftm_msg_t *self = zsync_ftm_msg_new (0);
     assert (self);
-    zsync_credit_msg_destroy (&self);
+    zsync_ftm_msg_destroy (&self);
 
     //  Create pair of sockets we can send through
     zctx_t *ctx = zctx_new ();
@@ -874,134 +1025,144 @@ zsync_credit_msg_test (bool verbose)
     
     //  Encode/send/decode and verify each message type
     int instance;
-    zsync_credit_msg_t *copy;
-    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_REQUEST);
+    zsync_ftm_msg_t *copy;
+    self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_REQUEST);
     
     //  Check that _dup works on empty message
-    copy = zsync_credit_msg_dup (self);
+    copy = zsync_ftm_msg_dup (self);
     assert (copy);
-    zsync_credit_msg_destroy (&copy);
+    zsync_ftm_msg_destroy (&copy);
 
-    zsync_credit_msg_set_sender (self, "Life is short but Now lasts for ever");
-    zsync_credit_msg_set_req_bytes (self, 123);
+    zsync_ftm_msg_set_sender (self, "Life is short but Now lasts for ever");
+    zsync_ftm_msg_path_append (self, "Name: %s", "Brutus");
+    zsync_ftm_msg_path_append (self, "Age: %d", 43);
     //  Send twice from same object
-    zsync_credit_msg_send_again (self, output);
-    zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_send_again (self, output);
+    zsync_ftm_msg_send (&self, output);
 
     for (instance = 0; instance < 2; instance++) {
         if (instance == 0) {
-            self = zsync_credit_msg_recv (input);
+            self = zsync_ftm_msg_recv (input);
         }
         if (instance == 1) {
             zclock_sleep (250);     // give time for message to arrive
-            self = zsync_credit_msg_recv_nowait (input);
+            self = zsync_ftm_msg_recv_nowait (input);
         }
         assert (self);
         
-        assert (streq (zsync_credit_msg_sender (self), "Life is short but Now lasts for ever"));
-        assert (zsync_credit_msg_req_bytes (self) == 123);
-        zsync_credit_msg_destroy (&self);
+        assert (streq (zsync_ftm_msg_sender (self), "Life is short but Now lasts for ever"));
+        assert (zsync_ftm_msg_path_size (self) == 2);
+        assert (streq (zsync_ftm_msg_path_first (self), "Name: Brutus"));
+        assert (streq (zsync_ftm_msg_path_next (self), "Age: 43"));
+        zsync_ftm_msg_destroy (&self);
     }
-    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_UPDATE);
+    self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_CREDIT);
     
     //  Check that _dup works on empty message
-    copy = zsync_credit_msg_dup (self);
+    copy = zsync_ftm_msg_dup (self);
     assert (copy);
-    zsync_credit_msg_destroy (&copy);
+    zsync_ftm_msg_destroy (&copy);
 
-    zsync_credit_msg_set_sender (self, "Life is short but Now lasts for ever");
-    zsync_credit_msg_set_recv_bytes (self, 123);
+    zsync_ftm_msg_set_sender (self, "Life is short but Now lasts for ever");
+    zsync_ftm_msg_set_credit (self, 123);
     //  Send twice from same object
-    zsync_credit_msg_send_again (self, output);
-    zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_send_again (self, output);
+    zsync_ftm_msg_send (&self, output);
 
     for (instance = 0; instance < 2; instance++) {
         if (instance == 0) {
-            self = zsync_credit_msg_recv (input);
+            self = zsync_ftm_msg_recv (input);
         }
         if (instance == 1) {
             zclock_sleep (250);     // give time for message to arrive
-            self = zsync_credit_msg_recv_nowait (input);
+            self = zsync_ftm_msg_recv_nowait (input);
         }
         assert (self);
         
-        assert (streq (zsync_credit_msg_sender (self), "Life is short but Now lasts for ever"));
-        assert (zsync_credit_msg_recv_bytes (self) == 123);
-        zsync_credit_msg_destroy (&self);
+        assert (streq (zsync_ftm_msg_sender (self), "Life is short but Now lasts for ever"));
+        assert (zsync_ftm_msg_credit (self) == 123);
+        zsync_ftm_msg_destroy (&self);
     }
-    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_GIVE_CREDIT);
+    self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_CHUNK);
     
     //  Check that _dup works on empty message
-    copy = zsync_credit_msg_dup (self);
+    copy = zsync_ftm_msg_dup (self);
     assert (copy);
-    zsync_credit_msg_destroy (&copy);
+    zsync_ftm_msg_destroy (&copy);
 
-    zsync_credit_msg_set_receiver (self, "Life is short but Now lasts for ever");
-    zsync_credit_msg_set_credit (self, zmsg_new ());
-//    zmsg_addstr (zsync_credit_msg_credit (self), "Hello, World");
+    zsync_ftm_msg_set_receiver (self, "Life is short but Now lasts for ever");
+    zsync_ftm_msg_set_chunk (self, zmsg_new ());
+//    zmsg_addstr (zsync_ftm_msg_chunk (self), "Hello, World");
     //  Send twice from same object
-    zsync_credit_msg_send_again (self, output);
-    zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_send_again (self, output);
+    zsync_ftm_msg_send (&self, output);
 
     for (instance = 0; instance < 2; instance++) {
         if (instance == 0) {
-            self = zsync_credit_msg_recv (input);
+            self = zsync_ftm_msg_recv (input);
         }
         if (instance == 1) {
             zclock_sleep (250);     // give time for message to arrive
-            self = zsync_credit_msg_recv_nowait (input);
+            self = zsync_ftm_msg_recv_nowait (input);
         }
         assert (self);
         
-        assert (streq (zsync_credit_msg_receiver (self), "Life is short but Now lasts for ever"));
-        assert (zmsg_size (zsync_credit_msg_credit (self)) == 0);
-        zsync_credit_msg_destroy (&self);
+        assert (streq (zsync_ftm_msg_receiver (self), "Life is short but Now lasts for ever"));
+        assert (zmsg_size (zsync_ftm_msg_chunk (self)) == 0);
+        zsync_ftm_msg_destroy (&self);
     }
-    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_ABORT);
+    self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_ABORT);
     
     //  Check that _dup works on empty message
-    copy = zsync_credit_msg_dup (self);
+    copy = zsync_ftm_msg_dup (self);
     assert (copy);
-    zsync_credit_msg_destroy (&copy);
+    zsync_ftm_msg_destroy (&copy);
 
+    zsync_ftm_msg_set_sender (self, "Life is short but Now lasts for ever");
+    zsync_ftm_msg_path_append (self, "Name: %s", "Brutus");
+    zsync_ftm_msg_path_append (self, "Age: %d", 43);
     //  Send twice from same object
-    zsync_credit_msg_send_again (self, output);
-    zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_send_again (self, output);
+    zsync_ftm_msg_send (&self, output);
 
     for (instance = 0; instance < 2; instance++) {
         if (instance == 0) {
-            self = zsync_credit_msg_recv (input);
+            self = zsync_ftm_msg_recv (input);
         }
         if (instance == 1) {
             zclock_sleep (250);     // give time for message to arrive
-            self = zsync_credit_msg_recv_nowait (input);
+            self = zsync_ftm_msg_recv_nowait (input);
         }
         assert (self);
         
-        zsync_credit_msg_destroy (&self);
+        assert (streq (zsync_ftm_msg_sender (self), "Life is short but Now lasts for ever"));
+        assert (zsync_ftm_msg_path_size (self) == 2);
+        assert (streq (zsync_ftm_msg_path_first (self), "Name: Brutus"));
+        assert (streq (zsync_ftm_msg_path_next (self), "Age: 43"));
+        zsync_ftm_msg_destroy (&self);
     }
-    self = zsync_credit_msg_new (ZSYNC_CREDIT_MSG_TERMINATE);
+    self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_TERMINATE);
     
     //  Check that _dup works on empty message
-    copy = zsync_credit_msg_dup (self);
+    copy = zsync_ftm_msg_dup (self);
     assert (copy);
-    zsync_credit_msg_destroy (&copy);
+    zsync_ftm_msg_destroy (&copy);
 
     //  Send twice from same object
-    zsync_credit_msg_send_again (self, output);
-    zsync_credit_msg_send (&self, output);
+    zsync_ftm_msg_send_again (self, output);
+    zsync_ftm_msg_send (&self, output);
 
     for (instance = 0; instance < 2; instance++) {
         if (instance == 0) {
-            self = zsync_credit_msg_recv (input);
+            self = zsync_ftm_msg_recv (input);
         }
         if (instance == 1) {
             zclock_sleep (250);     // give time for message to arrive
-            self = zsync_credit_msg_recv_nowait (input);
+            self = zsync_ftm_msg_recv_nowait (input);
         }
         assert (self);
         
-        zsync_credit_msg_destroy (&self);
+        zsync_ftm_msg_destroy (&self);
     }
 
     zctx_destroy (&ctx);

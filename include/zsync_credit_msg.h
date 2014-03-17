@@ -1,9 +1,19 @@
 /*  =========================================================================
-    zsync_credit_msg - work with ZSYNC workers messages
+    zsync_credit_msg - credit manager api
     
-    Generated codec header for zsync_credit_msg
-    -------------------------------------------------------------------------
-    Copyright (c) 2013-2014 Kevin Sapper, Bernhard Finger                   
+    Codec header for zsync_credit_msg.
+
+    ** WARNING *************************************************************
+    THIS SOURCE FILE IS 100% GENERATED. If you edit this file, you will lose
+    your changes at the next build cycle. This is great for temporary printf
+    statements. DO NOT MAKE ANY CHANGES YOU WISH TO KEEP. The correct places
+    for commits are:
+
+    * The XML model used for this code generation: zsync_credit_msg
+    * The code generation script that built this file: zproto_codec_c
+    ************************************************************************
+    
+    Copyright (c) 2013-2014 Kevin Sapper                                    
     Copyright other contributors as noted in the AUTHORS file.              
                                                                             
     This file is part of ZeroSync, see http://zerosync.org.                 
@@ -36,9 +46,9 @@
         sender              string      
         recv_bytes          number 8    
 
-    GIVE_CREDIT - Credit to send to the other peer
-        sender              string      
-        credit              number 8    
+    GIVE_CREDIT - Sends an encoded credit to be forwarded to the receiver.
+        receiver            string      
+        credit              msg         
 
     ABORT - Abort sending credit to other peer
 
@@ -69,13 +79,34 @@ zsync_credit_msg_t *
 void
     zsync_credit_msg_destroy (zsync_credit_msg_t **self_p);
 
-//  Receive and parse a zsync_credit_msg from the input
+//  Parse a zsync_credit_msg from zmsg_t. Returns new object or NULL if error.
+//  Use when not in control of receiving the message.
+zsync_credit_msg_t *
+    zsync_credit_msg_decode (zmsg_t *msg);
+
+//  Encode zsync_credit_msg into zmsg and destroy it. 
+//  Returns a newly created object or NULL if error. 
+//  Use when not in control of sending the message.
+zmsg_t *
+    zsync_credit_msg_encode (zsync_credit_msg_t *self);
+
+//  Receive and parse a zsync_credit_msg from the socket. Returns new object, 
+//  or NULL if error. Will block if there's no message waiting.
 zsync_credit_msg_t *
     zsync_credit_msg_recv (void *input);
+
+//  Receive and parse a zsync_credit_msg from the socket. Returns new object, 
+//  or NULL either if there was no input waiting, or the recv was interrupted.
+zsync_credit_msg_t *
+    zsync_credit_msg_recv_nowait (void *input);
 
 //  Send the zsync_credit_msg to the output, and destroy it
 int
     zsync_credit_msg_send (zsync_credit_msg_t **self_p, void *output);
+
+//  Send the zsync_credit_msg to the output, and do not destroy it
+int
+    zsync_credit_msg_send_again (zsync_credit_msg_t *self, void *output);
 
 //  Send the REQUEST to the output in one step
 int
@@ -92,8 +123,8 @@ int
 //  Send the GIVE_CREDIT to the output in one step
 int
     zsync_credit_msg_send_give_credit (void *output,
-        char *sender,
-        uint64_t credit);
+        char *receiver,
+        zmsg_t *credit);
     
 //  Send the ABORT to the output in one step
 int
@@ -143,11 +174,17 @@ uint64_t
 void
     zsync_credit_msg_set_recv_bytes (zsync_credit_msg_t *self, uint64_t recv_bytes);
 
+//  Get/set the receiver field
+char *
+    zsync_credit_msg_receiver (zsync_credit_msg_t *self);
+void
+    zsync_credit_msg_set_receiver (zsync_credit_msg_t *self, char *format, ...);
+
 //  Get/set the credit field
-uint64_t
+zmsg_t *
     zsync_credit_msg_credit (zsync_credit_msg_t *self);
 void
-    zsync_credit_msg_set_credit (zsync_credit_msg_t *self, uint64_t credit);
+    zsync_credit_msg_set_credit (zsync_credit_msg_t *self, zmsg_t *msg);
 
 //  Self test of this class
 int

@@ -1,5 +1,3 @@
-
-
 #ifndef __ZSYNC_CLASSES_H_INCLUDED_
 #define __ZSYNC_CLASSES_H_INCLUDED_
 
@@ -14,6 +12,7 @@
 #include "../include/zsync_node.h"
 #include "../include/zsync_agent.h"
 #include "../include/zsync_credit_msg.h"
+#include "../include/zsync_ftm_msg.h"
 
 // Strings are encoded with 2-byte length
 #define STRING_MAX 65535 // 2-byte - 1-bit for trailing \0

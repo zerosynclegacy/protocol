@@ -443,13 +443,12 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
         if (which == self->credit_pipe) {
             printf("[ND] Recv Credit Manager\n");
             zsync_credit_msg_t *cmsg = zsync_credit_msg_recv (self->credit_pipe);
-            char *sender = zsync_credit_msg_sender (cmsg);
-            char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
+            char *receiver = zsync_credit_msg_receiver (cmsg);
+            char *zyre_uuid = zsync_node_zyre_uuid (self, receiver);
             if (zyre_uuid) {
-                zmsg_t *msg = zmsg_new ();
-                int rc = zs_msg_pack_give_credit (msg, zsync_credit_msg_credit (cmsg));
+                zmsg_t *credit_msg = zsync_credit_msg_credit (cmsg);
                 assert (rc == 0);
-                zyre_whisper (self->zyre, zyre_uuid, &msg);
+                zyre_whisper (self->zyre, zyre_uuid, &credit_msg);
             }
             zsync_credit_msg_destroy (&cmsg);
         }

@@ -1,0 +1,55 @@
+The following ABNF grammar defines the file transfer manager api:
+
+    zsync_ftm_msg   = *(  request |  credit |  chunk |  abort |  terminate )
+
+    ; Sends a list of files requested by sender
+    C:request       = signature %d1 sender path
+    signature       = %xAA %d1              ; two octets
+    sender          = string                ; UUID that identifies the sender
+    path            = strings               ; 
+
+    ; Sends an approved credit amount by sender
+    C:credit        = signature %d2 sender credit
+    sender          = string                ; UUID that identifies the sender
+    credit          = number-8              ; 
+
+    ; Sends a encoded chunk to be forwarded to receiver
+    C:chunk         = signature %d3 receiver chunk
+    receiver        = string                ; UUID that identifies the receiver
+    chunk           = msg                   ; 
+
+    ; Sends a list of files to abort file transfer for sender
+    C:abort         = signature %d4 sender path
+    sender          = string                ; UUID that identifies the sender
+    path            = strings               ; 
+
+    ; Terminate the worker thread
+    C:terminate     = signature %d5
+
+    ; Numbers are unsigned integers in network byte order
+    number-1        = 1OCTET
+    number-2        = 2OCTET
+    number-4        = 4OCTET
+    number-8        = 8OCTET
+
+    ; Strings are always length + text contents
+    string          = number-1 *VCHAR
+    longstr         = number-4 *VCHAR
+
+    ; A list of string values
+    strings         = count *value
+    value           = longstr
+
+    ; A list of name/value pairs
+    dictionary      = count *( name value )
+    count           = number-4
+    name            = string
+
+    ; A chunk has 4-octet length + binary contents
+    chunk           = number-4 *OCTET
+
+    ; A frame is zero or more octets encoded as a ZeroMQ frame
+    frame           = *OCTET
+
+    ; A msg is zero or more distinct frames
+    msg             = *frame

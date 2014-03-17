@@ -1,0 +1,53 @@
+The following ABNF grammar defines the credit manager api:
+
+    zsync_credit_msg  = *(  request |  update |  give_credit |  abort |  terminate )
+
+    ; Bytes requested from other peer
+    C:request       = signature %d1 sender req_bytes
+    signature       = %xAA %d1              ; two octets
+    sender          = string                ; 
+    req_bytes       = number-8              ; 
+
+    ; Bytes received from other peer
+    C:update        = signature %d2 sender recv_bytes
+    sender          = string                ; 
+    recv_bytes      = number-8              ; 
+
+    ; Sends an encoded credit to be forwarded to the receiver.
+    C:give_credit   = signature %d3 receiver credit
+    receiver        = string                ; 
+    credit          = msg                   ; 
+
+    ; Abort sending credit to other peer
+    C:abort         = signature %d4
+
+    ; Terminate the worker thread
+    C:terminate     = signature %d5
+
+    ; Numbers are unsigned integers in network byte order
+    number-1        = 1OCTET
+    number-2        = 2OCTET
+    number-4        = 4OCTET
+    number-8        = 8OCTET
+
+    ; Strings are always length + text contents
+    string          = number-1 *VCHAR
+    longstr         = number-4 *VCHAR
+
+    ; A list of string values
+    strings         = count *value
+    value           = longstr
+
+    ; A list of name/value pairs
+    dictionary      = count *( name value )
+    count           = number-4
+    name            = string
+
+    ; A chunk has 4-octet length + binary contents
+    chunk           = number-4 *OCTET
+
+    ; A frame is zero or more octets encoded as a ZeroMQ frame
+    frame           = *OCTET
+
+    ; A msg is zero or more distinct frames
+    msg             = *frame

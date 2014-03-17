@@ -2,7 +2,7 @@
     zsync_ftmanager - File Transfer manager
 
    -------------------------------------------------------------------------
-   Copyright (c) 2013 Kevin Sapper
+   Copyright (c) 2013 - 2014 Kevin Sapper
    Copyright other contributors as noted in the AUTHORS file.
    
    This file is part of ZeroSync, see http://zerosync.org.
@@ -133,8 +133,8 @@ void
 zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
 {
     zhash_t *peer_requests = zhash_new ();
-    zsync_agent_t *agent = (zsync_agent_t *) args;
-    zmsg_t *msg;
+    void *agent_pipe = args;
+    zsync_ftm_msg_t *msg;
     int rc;
 
     printf("[FT] started\n");
@@ -143,16 +143,15 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
         // Otherwise wait for work
         if (s_work_left (peer_requests)) {
             printf("[FT] go into recv nowait\n");
-            msg = zmsg_recv_nowait (pipe);
+            msg = zsync_ftm_msg_recv_nowait (pipe);
         } else {
             printf("[FT] go into recv\n");
-            msg = zmsg_recv (pipe);
+            msg = zsync_ftm_msg_recv (pipe);
         }
         
         if (msg) {
             printf("[FT] recv\n");
-            // First frame is sender 
-            char *sender = zmsg_popstr (msg);
+            char *sender = zsync_ftm_msg_sender (msg);
             // Get file transfer request object
             zsync_ftrequest_t *ftrequest = zhash_lookup (peer_requests, sender);
             if (!ftrequest) {
@@ -160,38 +159,36 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                 zhash_insert (peer_requests, sender, ftrequest);
                 zhash_freefn (peer_requests, sender, zsync_ftmanager_destroy_item);
             }
-
-            // Second frame is command
-            char *cmd = zmsg_popstr (msg);
-            if (streq (cmd, "REQUEST")) {
-                char *fpath = zmsg_popstr (msg);
-                while (fpath) {
-                    // TODO check for duplicates
-                    zlist_append (ftrequest->requested_files, zsync_ftfile_new (fpath));
-                    printf("[FT] added %s\n", fpath);
-                    fpath = zmsg_popstr (msg);
+            
+            // Read the command
+            switch (zsync_ftm_msg_id (msg)) {
+                case ZSYNC_FTM_MSG_REQUEST: 
+                {
+                    char *fpath = zsync_ftm_msg_path_first (msg);
+                    while (fpath) {
+                        // TODO check for duplicates
+                        zlist_append (ftrequest->requested_files, zsync_ftfile_new (fpath));
+                        printf("[FT] added %s\n", fpath);
+                        fpath = zsync_ftm_msg_path_next (msg);
+                    }
+                   break;
                 }
+                case ZSYNC_FTM_MSG_CREDIT:
+                {
+                    uint64_t credit = zsync_ftm_msg_credit (msg);
+                    ftrequest->credit += credit;
+                    printf("[FT] credit %"PRId64"\n", credit);
+                   break;
+                }
+                case ZSYNC_FTM_MSG_ABORT:
+                    zhash_delete (peer_requests, sender);
+                    printf("[FT] FT_ABORT\n");
+                   break;
+                case ZSYNC_FTM_MSG_TERMINATE:
+                   zsync_ftm_msg_send_terminate (pipe);
+                   break;
             }
-            else 
-            if (streq (cmd, "CREDIT")) {
-                uint64_t credit;
-                sscanf (zmsg_popstr (msg), "%"SCNd64, &credit);
-                ftrequest->credit += credit;
-                printf("[FT] credit %"PRId64"\n", credit);
-            }
-            else 
-            if (streq (cmd, "ABORT")) {
-                zhash_delete (peer_requests, sender);
-                printf("[FT] FT_ABORT");
-            }
-            else
-            if (streq (cmd, "TERMINATE")) {
-                zmsg_t *tmsg = zmsg_new ();
-                zmsg_pushstr (tmsg, "OK");
-                zmsg_send (&tmsg, pipe);
-                break;
-            }
-            zmsg_destroy (&msg);
+            zsync_ftm_msg_destroy (&msg);
         }
        
         printf("[FT] LOOKUP\n");
@@ -205,15 +202,15 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             printf("[FT] requests (%d), credit(%"PRId64")\n", request_count, request->credit);
             if (request_count > 0 && request->credit > CHUNK_SIZE) {
                 zsync_ftfile_t *file = zlist_first (request->requested_files);
-                zchunk_t *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
+                // Use agent_api
+                zchunk_t *chunk;
+                // zchunk_t *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
                 if (chunk) {
                     zframe_t *data = zframe_new (zchunk_data (chunk), zchunk_size (chunk));
                     zmsg_t *msg = zmsg_new ();
                     rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
                     assert (rc == 0);
-                    // First frame sender uuid
-                    zmsg_pushstr (msg, key);
-                    zmsg_send (&msg, pipe); // Forward chunk to node
+                    zsync_ftm_msg_send_chunk (pipe, key, msg);
                     // Increment for next chunk
                     file->sequence++;
                     file->offset += CHUNK_SIZE;

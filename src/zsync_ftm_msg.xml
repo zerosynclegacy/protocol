@@ -1,0 +1,50 @@
+<?xml version = "1.0" encoding = "utf-8" ?>
+<class 
+    xmlns="http://zeromq.org/2014/gsl/codec/ns"
+    name = "zsync_ftm_msg" 
+    signature = "1" 
+    title = "file transfer manager api"
+    script = "zproto_codec_c"
+    header = "../include"
+    source = "."
+    >
+   
+This is the internal worker protocol for communication with transfer managers.
+<include filename = "license.xml" />
+
+<!-- Protocol constants -->
+<define name = "VERSION" value = "1" />
+
+<!-- Header for all messages -->
+<header>
+</header>
+
+<message name = "REQUEST" id = "1">
+    <field name = "sender" type = "string">UUID that identifies the sender</field>
+    <field name = "path" type = "strings" />
+Sends a list of files requested by sender
+</message>
+
+<message name = "CREDIT" id = "2">
+    <field name = "sender" type = "string">UUID that identifies the sender</field>
+    <field name = "credit" type = "number" size = "8" />
+Sends an approved credit amount by sender
+</message>
+
+<message name = "CHUNK" id = "3">
+    <field name = "receiver" type = "string">UUID that identifies the receiver</field>
+    <field name = "chunk" type = "msg" />
+Sends a encoded chunk to be forwarded to receiver
+</message>
+
+<message name = "ABORT" id = "4">
+    <field name = "sender" type = "string">UUID that identifies the sender</field>
+    <field name = "path" type = "strings" />
+Sends a list of files to abort file transfer for sender
+</message>
+
+<message name = "TERMINATE" id = "5">
+Terminate the worker thread
+</message>
+
+</class>
