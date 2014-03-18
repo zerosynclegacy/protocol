@@ -40,19 +40,22 @@
 
     REQUEST - Sends a list of files requested by sender
         sender              string      UUID that identifies the sender
-        path                strings     
+        paths               strings     
 
     CREDIT - Sends an approved credit amount by sender
         sender              string      UUID that identifies the sender
         credit              number 8    
 
-    CHUNK - Sends a encoded chunk to be forwarded to receiver
+    CHUNK - Requests a chunk of 'chunk_size' data from 'path' at 'offset'.
         receiver            string      UUID that identifies the receiver
-        chunk               msg         
+        path                string      Path of file that the 'chunk' belongs to
+        sequence            number 8    
+        chunk_size          number 8    Size of the requested chunk in bytes
+        offset              number 8    File offset for for the chunk in bytes
 
     ABORT - Sends a list of files to abort file transfer for sender
         sender              string      UUID that identifies the sender
-        path                strings     
+        path                string      
 
     TERMINATE - Terminate the worker thread
 */
@@ -114,7 +117,7 @@ int
 int
     zsync_ftm_msg_send_request (void *output,
         char *sender,
-        zlist_t *path);
+        zlist_t *paths);
     
 //  Send the CREDIT to the output in one step
 int
@@ -126,13 +129,16 @@ int
 int
     zsync_ftm_msg_send_chunk (void *output,
         char *receiver,
-        zmsg_t *chunk);
+        char *path,
+        uint64_t sequence,
+        uint64_t chunk_size,
+        uint64_t offset);
     
 //  Send the ABORT to the output in one step
 int
     zsync_ftm_msg_send_abort (void *output,
         char *sender,
-        zlist_t *path);
+        char *path);
     
 //  Send the TERMINATE to the output in one step
 int
@@ -166,21 +172,21 @@ char *
 void
     zsync_ftm_msg_set_sender (zsync_ftm_msg_t *self, char *format, ...);
 
-//  Get/set the path field
+//  Get/set the paths field
 zlist_t *
-    zsync_ftm_msg_path (zsync_ftm_msg_t *self);
+    zsync_ftm_msg_paths (zsync_ftm_msg_t *self);
 void
-    zsync_ftm_msg_set_path (zsync_ftm_msg_t *self, zlist_t *path);
+    zsync_ftm_msg_set_paths (zsync_ftm_msg_t *self, zlist_t *paths);
 
-//  Iterate through the path field, and append a path value
+//  Iterate through the paths field, and append a paths value
 char *
-    zsync_ftm_msg_path_first (zsync_ftm_msg_t *self);
+    zsync_ftm_msg_paths_first (zsync_ftm_msg_t *self);
 char *
-    zsync_ftm_msg_path_next (zsync_ftm_msg_t *self);
+    zsync_ftm_msg_paths_next (zsync_ftm_msg_t *self);
 void
-    zsync_ftm_msg_path_append (zsync_ftm_msg_t *self, char *format, ...);
+    zsync_ftm_msg_paths_append (zsync_ftm_msg_t *self, char *format, ...);
 size_t
-    zsync_ftm_msg_path_size (zsync_ftm_msg_t *self);
+    zsync_ftm_msg_paths_size (zsync_ftm_msg_t *self);
 
 //  Get/set the credit field
 uint64_t
@@ -194,11 +200,29 @@ char *
 void
     zsync_ftm_msg_set_receiver (zsync_ftm_msg_t *self, char *format, ...);
 
-//  Get/set the chunk field
-zmsg_t *
-    zsync_ftm_msg_chunk (zsync_ftm_msg_t *self);
+//  Get/set the path field
+char *
+    zsync_ftm_msg_path (zsync_ftm_msg_t *self);
 void
-    zsync_ftm_msg_set_chunk (zsync_ftm_msg_t *self, zmsg_t *msg);
+    zsync_ftm_msg_set_path (zsync_ftm_msg_t *self, char *format, ...);
+
+//  Get/set the sequence field
+uint64_t
+    zsync_ftm_msg_sequence (zsync_ftm_msg_t *self);
+void
+    zsync_ftm_msg_set_sequence (zsync_ftm_msg_t *self, uint64_t sequence);
+
+//  Get/set the chunk_size field
+uint64_t
+    zsync_ftm_msg_chunk_size (zsync_ftm_msg_t *self);
+void
+    zsync_ftm_msg_set_chunk_size (zsync_ftm_msg_t *self, uint64_t chunk_size);
+
+//  Get/set the offset field
+uint64_t
+    zsync_ftm_msg_offset (zsync_ftm_msg_t *self);
+void
+    zsync_ftm_msg_set_offset (zsync_ftm_msg_t *self, uint64_t offset);
 
 //  Self test of this class
 int

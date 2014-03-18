@@ -39,9 +39,8 @@
 
 struct _zsync_node_t {
     zctx_t *ctx;
-    void *pipe;                 // Pipe to communicate with agent
     zyre_t *zyre;               // Zyre
-    zsync_agent_t *agent;       // Zsync agent
+    void *zsync_pipe;           // Pipe to communicate with agent
     void *credit_pipe;          // Pipe to credit manager
     void *file_pipe;            // Pipe to file manager
     zuuid_t *own_uuid;          // uuid of this node
@@ -119,6 +118,7 @@ zsync_node_destroy (zsync_node_t **self_p)
         // TODO destroy all zsync_peers
         zlist_destroy (&self->peers);
         zhash_destroy (&self->zyre_peers);
+        zyre_destroy (&self->zyre);
 
         free (self);
         self_p = NULL;
@@ -197,9 +197,13 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
             break;        
         case ZYRE_EVENT_JOIN:
             printf ("[ND] ZS_JOIN: %s\n", zyre_sender);
-            // send GREET message
+            //  Obtain own current state
+            zsync_msg_send_req_state (self->zsync_pipe);
+            zsync_msg_t *msg_state = zsync_msg_recv (self->zsync_pipe);
+            assert (zsync_msg_id (msg_state) == ZSYNC_MSG_RES_STATE);
+            uint64_t state = zsync_msg_state (msg_state); 
+            //  Send GREET message
             zyre_out = zmsg_new ();
-            uint64_t state = zsync_agent_current_state(self->agent); 
             zs_msg_pack_greet (zyre_out, zuuid_data (self->own_uuid), state);
             zyre_whisper (self->zyre, zyre_sender, &zyre_out);
             break;
@@ -258,16 +262,14 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
                 case ZS_CMD_LAST_STATE:
                     assert (sender);
                     zyre_out = zmsg_new ();
-                    // Gets updates from client
+                    //  Gets updates from client
                     uint64_t last_state_remote = zs_msg_get_state (msg);
-                    zlist_t *filemeta_list = zsync_agent_update (self->agent, last_state_remote);
-                   
-                    if (filemeta_list) { 
-                        // Send UPDATE
-                        uint64_t my_current_state = zsync_agent_current_state (self->agent);
-                        zs_msg_pack_update (zyre_out, my_current_state, filemeta_list);
-                        zyre_whisper (self->zyre, zyre_sender, &zyre_out);
-                    }
+                    zsync_msg_send_req_update (self->zsync_pipe, last_state_remote);
+                    zsync_msg_t *msg_upd = zsync_msg_recv (self->zsync_pipe);
+                    assert (zsync_msg_id (msg_upd) == ZSYNC_MSG_UPDATE);
+                    //  Send UPDATE
+                    zyre_out = zsync_msg_update_msg (msg_upd);
+                    zyre_whisper (self->zyre, zyre_sender, &zyre_out);
                     break;
                 case ZS_CMD_UPDATE:
                     printf ("[ND] UPDATE\n");
@@ -277,7 +279,10 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
                     zsync_node_save_peers (self);
 
                     fmetadata = zs_msg_get_fmetadata (msg);
-                    zsync_agent_pass_update (self->agent, zsync_peer_uuid (sender), fmetadata);
+                    zmsg_t *zsync_msg = zmsg_new ();
+                    zs_msg_pack_update (zsync_msg, zs_msg_get_state (msg), fmetadata);
+                    
+                    zsync_msg_send_update (self->zsync_pipe, zsync_peer_uuid (sender), zsync_msg);
                     break;
                 case ZS_CMD_REQUEST_FILES:
                     printf ("[ND] REQUEST FILES\n");
@@ -313,7 +318,7 @@ zsync_node_recv_from_zyre (zsync_node_t *self)
                     char *path = zs_msg_get_file_path (msg);
                     uint64_t seq = zs_msg_get_sequence (msg);
                     uint64_t off = zs_msg_get_offset (msg);
-                    zsync_agent_pass_chunk (self->agent, chunk, path, seq, off);
+                    zsync_msg_send_chunk (self->zsync_pipe, chunk, path, seq, off);
                     break;
                 case ZS_CMD_ABORT:
                     // TODO abort protocol managed file transfer
@@ -337,78 +342,68 @@ void
 zsync_node_recv_from_agent (zsync_node_t *self)
 {
     assert (self);
-    zmsg_t *msg = zmsg_recv (self->pipe);
-    char *command = zmsg_popstr (msg);
-    if (streq (command, "REQUEST")) {
-        char *sender = zmsg_popstr (msg);
-        char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
-        if (zyre_uuid) {
-            char *total_bytes_s = zmsg_popstr (msg);
-            uint64_t total_bytes;
-            sscanf (total_bytes_s, "%"PRId64, &total_bytes);
-            assert (zyre_uuid);
-            printf("[ND] Recv Agent WHISPER REQUEST %s ; %s\n", zyre_uuid, sender);
-            zyre_whisper (self->zyre, zyre_uuid, &msg);
-            zsync_credit_msg_send_request (self->credit_pipe, sender, total_bytes);
+    zsync_msg_t *msg = zsync_msg_recv (self->zsync_pipe);
+    switch (zsync_msg_id (msg)) {
+        case ZSYNC_MSG_REQ_FILES: {
+            char *receiver = zsync_msg_receiver (msg);
+            char *zyre_uuid = zsync_node_zyre_uuid (self, receiver);
+            if (zyre_uuid) {
+                uint64_t size = zsync_msg_size (msg);
+                printf("[ND] Recv Agent WHISPER REQUEST %s ; %s\n", zyre_uuid, receiver);
+                zmsg_t *zyre_out = zmsg_new ();
+                zs_msg_pack_request_files (zyre_out, zsync_msg_files (msg));
+                zyre_whisper (self->zyre, zyre_uuid, &zyre_out);
+                zsync_credit_msg_send_request (self->credit_pipe, zyre_uuid, size);
+            }
+            break;
         }
-    }
-    else
-    if (streq (command, "UPDATE")) {
-        printf("[ND] Recv Agent SHOUT UPDATE\n");
-        zyre_shout (self->zyre, zsync_agent_channel (self->agent), &msg);
-    }
-    else
-    if (streq (command, "TERMINATE")) {
-        // terminate file manager
-        zmsg_t *msg = zmsg_new ();
-        zmsg_addstr (msg, "TERMINATE");
-        zmsg_addstr (msg, "TERMINATE");
-        zmsg_send (&msg, self->file_pipe);
-        // terminate credit manager
-        zsync_credit_msg_send_terminate (self->credit_pipe);
-        
-        // receive termination confirmation
-        msg = zmsg_recv (self->file_pipe);
-        zmsg_destroy (&msg);
-        printf("OK ft\n");
-        msg = zmsg_recv (self->credit_pipe);
-        zmsg_destroy (&msg);
-        printf("OK cm\n");
+        case ZSYNC_MSG_UPDATE:
+            printf("[ND] Recv Agent SHOUT UPDATE\n");
+            zmsg_t *zyre_out = zsync_msg_update_msg (msg);
+            zyre_shout (self->zyre, "ZSYNC", &zyre_out);
+            break;                     
+        case ZSYNC_MSG_TERMINATE:
+            zyre_stop (self->zyre);
+            // terminate file transfer manager
+            zsync_ftm_msg_send_terminate (self->file_pipe);
+            // terminate credit manager
+            zsync_credit_msg_send_terminate (self->credit_pipe);
+            // receive termination confirmation
+            msg = zsync_msg_recv (self->file_pipe);
+            zsync_msg_destroy (&msg);
+            printf("OK ft\n");
+            msg = zsync_msg_recv (self->credit_pipe);
+            zsync_msg_destroy (&msg);
+            printf("OK cm\n");
 
-        // send shutdown confirmation to agent
-        msg = zmsg_new ();
-        zmsg_addstr (msg, "OK");
-        zmsg_send (&msg, self->pipe);
-        printf("SEND OK agent\n");
-        
-        self->terminated = true;
+            // send shutdown confirmation to agent
+            zsync_msg_send_terminate (self->zsync_pipe);
+            self->terminated = true;
+            break;            
     }
 }
-
 
 
 void
 zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
 {
     int rc;    
-    zsync_agent_t *agent = (zsync_agent_t *) args;
     zsync_node_t *self = zsync_node_new ();
-    self->ctx = zsync_agent_ctx (agent);
-    self->zyre = zsync_agent_zyre (agent);
-    self->pipe = pipe;
-    self->agent = agent;
+    self->ctx = ctx;
+    self->zyre = zyre_new (ctx);
+    self->zsync_pipe = pipe;
     
     // Join group
-    rc = zyre_join (self->zyre, zsync_agent_channel (self->agent));
+    rc = zyre_join (self->zyre, "ZSYNC");
     assert (rc == 0);
 
     // Give time to interconnect
     zclock_sleep (250);
 
-    zpoller_t *poller = zpoller_new (zyre_socket (self->zyre), self->pipe, NULL);
+    zpoller_t *poller = zpoller_new (zyre_socket (self->zyre), self->zsync_pipe, NULL);
     
     // Create thread for file management
-    self->file_pipe = zthread_fork (self->ctx, zsync_ftmanager_engine, agent);
+    self->file_pipe = zthread_fork (self->ctx, zsync_ftmanager_engine, NULL);
     zpoller_add (poller, self->file_pipe);
     // Create thread for credit management
     self->credit_pipe = zthread_fork (self->ctx, zsync_credit_manager_engine, NULL);
@@ -423,20 +418,32 @@ zsync_node_engine (void *args, zctx_t *ctx, void *pipe)
             zsync_node_recv_from_zyre (self);
         } 
         else
-        if (which == self->pipe) {
+        if (which == self->zsync_pipe) {
             printf("[ND] Recv Agent\n");
             zsync_node_recv_from_agent (self);
         }
         else
         if (which == self->file_pipe) {
             printf("[ND] Recv FT Manager\n");
-            zmsg_t *msg = zmsg_recv (self->file_pipe);
-            char *sender = zmsg_popstr (msg);
-            char *zyre_uuid = zsync_node_zyre_uuid (self, sender);
+            zsync_ftm_msg_t *msg = zsync_ftm_msg_recv (self->file_pipe);
+            char *receiver = zsync_ftm_msg_receiver (msg);
+            char *zyre_uuid = zsync_node_zyre_uuid (self, receiver);
             if (zyre_uuid) {
-                zmsg_t *zmsg = zmsg_dup (msg);
+                char *path = zsync_ftm_msg_path (msg);
+                uint64_t sequence = zsync_ftm_msg_sequence (msg);
+                uint64_t chunk_size = zsync_ftm_msg_chunk_size (msg);
+                uint64_t offset = zsync_ftm_msg_offset (msg);
+                zsync_msg_send_req_chunk (pipe, path, chunk_size, offset);
+                zsync_msg_t *zsmsg = zsync_msg_recv (pipe);
+                zchunk_t *chunk = zsync_msg_chunk (zsmsg);
+                zframe_t *frame = zframe_new (zchunk_data (chunk), zchunk_size (chunk));
+
+                zmsg_t *zmsg = zmsg_new ();
+                zs_msg_pack_chunk (zmsg, sequence, path, offset, frame);
+                
                 zyre_whisper (self->zyre, zyre_uuid, &zmsg);
-                zmsg_destroy (&msg);
+                zsync_ftm_msg_destroy (&msg);
+                zsync_msg_destroy (&zsmsg);
             }
         }
         else

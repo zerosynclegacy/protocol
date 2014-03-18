@@ -3,25 +3,28 @@ The following ABNF grammar defines the file transfer manager api:
     zsync_ftm_msg   = *(  request |  credit |  chunk |  abort |  terminate )
 
     ; Sends a list of files requested by sender
-    C:request       = signature %d1 sender path
+    C:request       = signature %d1 sender paths
     signature       = %xAA %d1              ; two octets
     sender          = string                ; UUID that identifies the sender
-    path            = strings               ; 
+    paths           = strings               ; 
 
     ; Sends an approved credit amount by sender
     C:credit        = signature %d2 sender credit
     sender          = string                ; UUID that identifies the sender
     credit          = number-8              ; 
 
-    ; Sends a encoded chunk to be forwarded to receiver
-    C:chunk         = signature %d3 receiver chunk
+    ; Requests a chunk of 'chunk_size' data from 'path' at 'offset'.
+    C:chunk         = signature %d3 receiver path sequence chunk_size offset
     receiver        = string                ; UUID that identifies the receiver
-    chunk           = msg                   ; 
+    path            = string                ; Path of file that the 'chunk' belongs to
+    sequence        = number-8              ; 
+    chunk_size      = number-8              ; Size of the requested chunk in bytes
+    offset          = number-8              ; File offset for for the chunk in bytes
 
     ; Sends a list of files to abort file transfer for sender
     C:abort         = signature %d4 sender path
     sender          = string                ; UUID that identifies the sender
-    path            = strings               ; 
+    path            = string                ; 
 
     ; Terminate the worker thread
     C:terminate     = signature %d5

@@ -6,6 +6,7 @@ pkgconfig_DATA =libzsync.pc
 include_HEADERS = \
     ../include/zsync.h \
     ../include/zs_msg.h \
+    ../include/zsync_msg.h \
     ../include/zsync_credit_msg.h \
     ../include/zsync_ftm_msg.h \
     ../include/zs_fmetadata.h \
@@ -17,6 +18,7 @@ include_HEADERS = \
 
 libzsync_la_SOURCES = \
     zs_msg.c \
+    zsync_msg.c \
     zsync_credit_msg.c \
     zsync_ftm_msg.c \
     zs_fmetadata.c \

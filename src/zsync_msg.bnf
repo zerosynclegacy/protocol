@@ -1,0 +1,82 @@
+The following ABNF grammar defines the the API which is used to comminicate with user interface clients:
+
+    zsync_api   = (REQ_STATE RES_STATE)
+               /= UPDATE
+               /= REQ_FILES
+               /= (REQ_CHUNK RES_CHUNK)
+
+    ; Requests the current state.
+    C:req_state     = signature %d1
+    signature       = %xAA %d0              ; two octets
+
+    ; Responds to REQ_STATE with current state.
+    C:res_state     = signature %d2 state
+    state           = number-8              ; 
+
+    ; Requests an update for all changes with a newer state then 'state'.
+    C:req_update    = signature %d3 state
+    state           = number-8              ; 
+
+    ; Sends a list of updated files to the client.
+    C:update        = signature %d4 sender update_msg
+    sender          = string                ; UUID that identifies the sender
+    update_msg      = msg                   ; List of updated files and their metadata
+
+    ; Requests a list of files from receiver.
+    C:req_files     = signature %d5 receiver files size
+    receiver        = string                ; UUID that identifies the receiver
+    files           = strings               ; List of file names
+    size            = number-8              ; Total size of all files in bytes
+
+    ; Requests a chunk of 'chunk_size' data from 'path' at 'offset'.
+    C:req_chunk     = signature %d6 path chunk_size offset
+    path            = string                ; Path of file that the 'chunk' belongs to 
+    chunk_size      = number-8              ; Size of the requested chunk in bytes
+    offset          = number-8              ; File offset for for the chunk in bytes
+
+    ; Responds with the requested chunk.
+    C:res_chunk     = signature %d7 chunk
+    chunk           = chunk                 ; Requested chunk
+
+    ; Sends one 'chunk' of data of a file at the 'path'.
+    C:chunk         = signature %d8 chunk path sequence offset
+    chunk           = chunk                 ; This chunk is part of the file at 'path'
+    path            = string                ; Path of file that the 'chunk' belongs to 
+    sequence        = number-8              ; Defines which chunk of the file at 'path' this is!
+    offset          = number-8              ; Offset for this 'chunk' in bytes
+
+    ; Sends an abort for one file at path.
+    C:abort         = signature %d9 receiver path
+    receiver        = string                ; UUID that identifies the receiver
+    path            = string                ; 
+
+    ; Terminate all worker threads.
+    C:terminate     = signature %d10
+
+    ; Numbers are unsigned integers in network byte order
+    number-1        = 1OCTET
+    number-2        = 2OCTET
+    number-4        = 4OCTET
+    number-8        = 8OCTET
+
+    ; Strings are always length + text contents
+    string          = number-1 *VCHAR
+    longstr         = number-4 *VCHAR
+
+    ; A list of string values
+    strings         = count *value
+    value           = longstr
+
+    ; A list of name/value pairs
+    dictionary      = count *( name value )
+    count           = number-4
+    name            = string
+
+    ; A chunk has 4-octet length + binary contents
+    chunk           = number-4 *OCTET
+
+    ; A frame is zero or more octets encoded as a ZeroMQ frame
+    frame           = *OCTET
+
+    ; A msg is zero or more distinct frames
+    msg             = *frame

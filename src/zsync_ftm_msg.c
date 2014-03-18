@@ -51,10 +51,13 @@ struct _zsync_ftm_msg_t {
     byte *needle;               //  Read/write pointer for serialization
     byte *ceiling;              //  Valid upper limit for read pointer
     char *sender;               //  UUID that identifies the sender
-    zlist_t *path;              //  
+    zlist_t *paths;             //  
     uint64_t credit;            //  
     char *receiver;             //  UUID that identifies the receiver
-    zmsg_t *chunk;              //  
+    char *path;                 //  Path of file that the 'chunk' belongs to
+    uint64_t sequence;          //  
+    uint64_t chunk_size;        //  Size of the requested chunk in bytes
+    uint64_t offset;            //  File offset for for the chunk in bytes
 };
 
 //  --------------------------------------------------------------------------
@@ -218,10 +221,10 @@ zsync_ftm_msg_destroy (zsync_ftm_msg_t **self_p)
         //  Free class properties
         zframe_destroy (&self->routing_id);
         free (self->sender);
-        if (self->path)
-            zlist_destroy (&self->path);
+        if (self->paths)
+            zlist_destroy (&self->paths);
         free (self->receiver);
-        zmsg_destroy (&self->chunk);
+        free (self->path);
 
         //  Free object itself
         free (self);
@@ -264,12 +267,12 @@ zsync_ftm_msg_decode (zmsg_t *msg)
             {
                 size_t list_size;
                 GET_NUMBER4 (list_size);
-                self->path = zlist_new ();
-                zlist_autofree (self->path);
+                self->paths = zlist_new ();
+                zlist_autofree (self->paths);
                 while (list_size--) {
                     char *string;
                     GET_LONGSTR (string);
-                    zlist_append (self->path, string);
+                    zlist_append (self->paths, string);
                     free (string);
                 }
             }
@@ -282,30 +285,15 @@ zsync_ftm_msg_decode (zmsg_t *msg)
 
         case ZSYNC_FTM_MSG_CHUNK:
             GET_STRING (self->receiver);
-            //  Get zero or more remaining frames,
-            //  leave current frame untouched
-            self->chunk = zmsg_new ();
-            zframe_t *chunk_part = zmsg_pop (msg);
-            while (chunk_part) {
-                zmsg_add (self->chunk, chunk_part);
-                chunk_part = zmsg_pop (msg);
-            }
+            GET_STRING (self->path);
+            GET_NUMBER8 (self->sequence);
+            GET_NUMBER8 (self->chunk_size);
+            GET_NUMBER8 (self->offset);
             break;
 
         case ZSYNC_FTM_MSG_ABORT:
             GET_STRING (self->sender);
-            {
-                size_t list_size;
-                GET_NUMBER4 (list_size);
-                self->path = zlist_new ();
-                zlist_autofree (self->path);
-                while (list_size--) {
-                    char *string;
-                    GET_LONGSTR (string);
-                    zlist_append (self->path, string);
-                    free (string);
-                }
-            }
+            GET_STRING (self->path);
             break;
 
         case ZSYNC_FTM_MSG_TERMINATE:
@@ -408,14 +396,14 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
             frame_size++;       //  Size is one octet
             if (self->sender)
                 frame_size += strlen (self->sender);
-            //  path is an array of strings
+            //  paths is an array of strings
             frame_size += 4;    //  Size is 4 octets
-            if (self->path) {
+            if (self->paths) {
                 //  Add up size of list contents
-                char *path = (char *) zlist_first (self->path);
-                while (path) {
-                    frame_size += 4 + strlen (path);
-                    path = (char *) zlist_next (self->path);
+                char *paths = (char *) zlist_first (self->paths);
+                while (paths) {
+                    frame_size += 4 + strlen (paths);
+                    paths = (char *) zlist_next (self->paths);
                 }
             }
             break;
@@ -434,6 +422,16 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
             frame_size++;       //  Size is one octet
             if (self->receiver)
                 frame_size += strlen (self->receiver);
+            //  path is a string with 1-byte length
+            frame_size++;       //  Size is one octet
+            if (self->path)
+                frame_size += strlen (self->path);
+            //  sequence is a 8-byte integer
+            frame_size += 8;
+            //  chunk_size is a 8-byte integer
+            frame_size += 8;
+            //  offset is a 8-byte integer
+            frame_size += 8;
             break;
             
         case ZSYNC_FTM_MSG_ABORT:
@@ -441,16 +439,10 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
             frame_size++;       //  Size is one octet
             if (self->sender)
                 frame_size += strlen (self->sender);
-            //  path is an array of strings
-            frame_size += 4;    //  Size is 4 octets
-            if (self->path) {
-                //  Add up size of list contents
-                char *path = (char *) zlist_first (self->path);
-                while (path) {
-                    frame_size += 4 + strlen (path);
-                    path = (char *) zlist_next (self->path);
-                }
-            }
+            //  path is a string with 1-byte length
+            frame_size++;       //  Size is one octet
+            if (self->path)
+                frame_size += strlen (self->path);
             break;
             
         case ZSYNC_FTM_MSG_TERMINATE:
@@ -474,12 +466,12 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
             }
             else
                 PUT_NUMBER1 (0);    //  Empty string
-            if (self->path) {
-                PUT_NUMBER4 (zlist_size (self->path));
-                char *path = (char *) zlist_first (self->path);
-                while (path) {
-                    PUT_LONGSTR (path);
-                    path = (char *) zlist_next (self->path);
+            if (self->paths) {
+                PUT_NUMBER4 (zlist_size (self->paths));
+                char *paths = (char *) zlist_first (self->paths);
+                while (paths) {
+                    PUT_LONGSTR (paths);
+                    paths = (char *) zlist_next (self->paths);
                 }
             }
             else
@@ -501,6 +493,14 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
             }
             else
                 PUT_NUMBER1 (0);    //  Empty string
+            if (self->path) {
+                PUT_STRING (self->path);
+            }
+            else
+                PUT_NUMBER1 (0);    //  Empty string
+            PUT_NUMBER8 (self->sequence);
+            PUT_NUMBER8 (self->chunk_size);
+            PUT_NUMBER8 (self->offset);
             break;
 
         case ZSYNC_FTM_MSG_ABORT:
@@ -510,15 +510,10 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
             else
                 PUT_NUMBER1 (0);    //  Empty string
             if (self->path) {
-                PUT_NUMBER4 (zlist_size (self->path));
-                char *path = (char *) zlist_first (self->path);
-                while (path) {
-                    PUT_LONGSTR (path);
-                    path = (char *) zlist_next (self->path);
-                }
+                PUT_STRING (self->path);
             }
             else
-                PUT_NUMBER4 (0);    //  Empty string array
+                PUT_NUMBER1 (0);    //  Empty string
             break;
 
         case ZSYNC_FTM_MSG_TERMINATE:
@@ -530,14 +525,6 @@ zsync_ftm_msg_encode (zsync_ftm_msg_t *self)
         zmsg_destroy (&msg);
         zsync_ftm_msg_destroy (&self);
         return NULL;
-    }
-    //  Now send the chunk field if set
-    if (self->id == ZSYNC_FTM_MSG_CHUNK) {
-        zframe_t *chunk_part = zmsg_pop (self->chunk);
-        while (chunk_part) {
-            zmsg_append (msg, &chunk_part);
-            chunk_part = zmsg_pop (self->chunk);
-        }
     }
     //  Destroy zsync_ftm_msg object
     zsync_ftm_msg_destroy (&self);
@@ -596,11 +583,11 @@ int
 zsync_ftm_msg_send_request (
     void *output,
     char *sender,
-    zlist_t *path)
+    zlist_t *paths)
 {
     zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_REQUEST);
     zsync_ftm_msg_set_sender (self, sender);
-    zsync_ftm_msg_set_path (self, zlist_dup (path));
+    zsync_ftm_msg_set_paths (self, zlist_dup (paths));
     return zsync_ftm_msg_send (&self, output);
 }
 
@@ -628,11 +615,17 @@ int
 zsync_ftm_msg_send_chunk (
     void *output,
     char *receiver,
-    zmsg_t *chunk)
+    char *path,
+    uint64_t sequence,
+    uint64_t chunk_size,
+    uint64_t offset)
 {
     zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_CHUNK);
     zsync_ftm_msg_set_receiver (self, receiver);
-    zsync_ftm_msg_set_chunk (self, zmsg_dup (chunk));
+    zsync_ftm_msg_set_path (self, path);
+    zsync_ftm_msg_set_sequence (self, sequence);
+    zsync_ftm_msg_set_chunk_size (self, chunk_size);
+    zsync_ftm_msg_set_offset (self, offset);
     return zsync_ftm_msg_send (&self, output);
 }
 
@@ -644,11 +637,11 @@ int
 zsync_ftm_msg_send_abort (
     void *output,
     char *sender,
-    zlist_t *path)
+    char *path)
 {
     zsync_ftm_msg_t *self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_ABORT);
     zsync_ftm_msg_set_sender (self, sender);
-    zsync_ftm_msg_set_path (self, zlist_dup (path));
+    zsync_ftm_msg_set_path (self, path);
     return zsync_ftm_msg_send (&self, output);
 }
 
@@ -681,7 +674,7 @@ zsync_ftm_msg_dup (zsync_ftm_msg_t *self)
     switch (self->id) {
         case ZSYNC_FTM_MSG_REQUEST:
             copy->sender = self->sender? strdup (self->sender): NULL;
-            copy->path = self->path? zlist_dup (self->path): NULL;
+            copy->paths = self->paths? zlist_dup (self->paths): NULL;
             break;
 
         case ZSYNC_FTM_MSG_CREDIT:
@@ -691,12 +684,15 @@ zsync_ftm_msg_dup (zsync_ftm_msg_t *self)
 
         case ZSYNC_FTM_MSG_CHUNK:
             copy->receiver = self->receiver? strdup (self->receiver): NULL;
-            copy->chunk = self->chunk? zmsg_dup (self->chunk): NULL;
+            copy->path = self->path? strdup (self->path): NULL;
+            copy->sequence = self->sequence;
+            copy->chunk_size = self->chunk_size;
+            copy->offset = self->offset;
             break;
 
         case ZSYNC_FTM_MSG_ABORT:
             copy->sender = self->sender? strdup (self->sender): NULL;
-            copy->path = self->path? zlist_dup (self->path): NULL;
+            copy->path = self->path? strdup (self->path): NULL;
             break;
 
         case ZSYNC_FTM_MSG_TERMINATE:
@@ -722,12 +718,12 @@ zsync_ftm_msg_dump (zsync_ftm_msg_t *self)
                 printf ("    sender='%s'\n", self->sender);
             else
                 printf ("    sender=\n");
-            printf ("    path={");
-            if (self->path) {
-                char *path = (char *) zlist_first (self->path);
-                while (path) {
-                    printf (" '%s'", path);
-                    path = (char *) zlist_next (self->path);
+            printf ("    paths={");
+            if (self->paths) {
+                char *paths = (char *) zlist_first (self->paths);
+                while (paths) {
+                    printf (" '%s'", paths);
+                    paths = (char *) zlist_next (self->paths);
                 }
             }
             printf (" }\n");
@@ -748,12 +744,13 @@ zsync_ftm_msg_dump (zsync_ftm_msg_t *self)
                 printf ("    receiver='%s'\n", self->receiver);
             else
                 printf ("    receiver=\n");
-            printf ("    chunk={\n");
-            if (self->chunk)
-                zmsg_dump (self->chunk);
+            if (self->path)
+                printf ("    path='%s'\n", self->path);
             else
-                printf ("(NULL)\n");
-            printf ("    }\n");
+                printf ("    path=\n");
+            printf ("    sequence=%ld\n", (long) self->sequence);
+            printf ("    chunk_size=%ld\n", (long) self->chunk_size);
+            printf ("    offset=%ld\n", (long) self->offset);
             break;
             
         case ZSYNC_FTM_MSG_ABORT:
@@ -762,15 +759,10 @@ zsync_ftm_msg_dump (zsync_ftm_msg_t *self)
                 printf ("    sender='%s'\n", self->sender);
             else
                 printf ("    sender=\n");
-            printf ("    path={");
-            if (self->path) {
-                char *path = (char *) zlist_first (self->path);
-                while (path) {
-                    printf (" '%s'", path);
-                    path = (char *) zlist_next (self->path);
-                }
-            }
-            printf (" }\n");
+            if (self->path)
+                printf ("    path='%s'\n", self->path);
+            else
+                printf ("    path=\n");
             break;
             
         case ZSYNC_FTM_MSG_TERMINATE:
@@ -867,51 +859,51 @@ zsync_ftm_msg_set_sender (zsync_ftm_msg_t *self, char *format, ...)
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the path field
+//  Get/set the paths field
 
 zlist_t *
-zsync_ftm_msg_path (zsync_ftm_msg_t *self)
+zsync_ftm_msg_paths (zsync_ftm_msg_t *self)
 {
     assert (self);
-    return self->path;
+    return self->paths;
 }
 
-//  Greedy function, takes ownership of path; if you don't want that
-//  then use zlist_dup() to pass a copy of path
+//  Greedy function, takes ownership of paths; if you don't want that
+//  then use zlist_dup() to pass a copy of paths
 
 void
-zsync_ftm_msg_set_path (zsync_ftm_msg_t *self, zlist_t *path)
+zsync_ftm_msg_set_paths (zsync_ftm_msg_t *self, zlist_t *paths)
 {
     assert (self);
-    zlist_destroy (&self->path);
-    self->path = path;
+    zlist_destroy (&self->paths);
+    self->paths = paths;
 }
 
 //  --------------------------------------------------------------------------
-//  Iterate through the path field, and append a path value
+//  Iterate through the paths field, and append a paths value
 
 char *
-zsync_ftm_msg_path_first (zsync_ftm_msg_t *self)
+zsync_ftm_msg_paths_first (zsync_ftm_msg_t *self)
 {
     assert (self);
-    if (self->path)
-        return (char *) (zlist_first (self->path));
+    if (self->paths)
+        return (char *) (zlist_first (self->paths));
     else
         return NULL;
 }
 
 char *
-zsync_ftm_msg_path_next (zsync_ftm_msg_t *self)
+zsync_ftm_msg_paths_next (zsync_ftm_msg_t *self)
 {
     assert (self);
-    if (self->path)
-        return (char *) (zlist_next (self->path));
+    if (self->paths)
+        return (char *) (zlist_next (self->paths));
     else
         return NULL;
 }
 
 void
-zsync_ftm_msg_path_append (zsync_ftm_msg_t *self, char *format, ...)
+zsync_ftm_msg_paths_append (zsync_ftm_msg_t *self, char *format, ...)
 {
     //  Format into newly allocated string
     assert (self);
@@ -921,18 +913,18 @@ zsync_ftm_msg_path_append (zsync_ftm_msg_t *self, char *format, ...)
     va_end (argptr);
 
     //  Attach string to list
-    if (!self->path) {
-        self->path = zlist_new ();
-        zlist_autofree (self->path);
+    if (!self->paths) {
+        self->paths = zlist_new ();
+        zlist_autofree (self->paths);
     }
-    zlist_append (self->path, string);
+    zlist_append (self->paths, string);
     free (string);
 }
 
 size_t
-zsync_ftm_msg_path_size (zsync_ftm_msg_t *self)
+zsync_ftm_msg_paths_size (zsync_ftm_msg_t *self)
 {
-    return zlist_size (self->path);
+    return zlist_size (self->paths);
 }
 
 
@@ -978,24 +970,81 @@ zsync_ftm_msg_set_receiver (zsync_ftm_msg_t *self, char *format, ...)
 
 
 //  --------------------------------------------------------------------------
-//  Get/set the chunk field
+//  Get/set the path field
 
-zmsg_t *
-zsync_ftm_msg_chunk (zsync_ftm_msg_t *self)
+char *
+zsync_ftm_msg_path (zsync_ftm_msg_t *self)
 {
     assert (self);
-    return self->chunk;
+    return self->path;
 }
 
-//  Takes ownership of supplied msg
 void
-zsync_ftm_msg_set_chunk (zsync_ftm_msg_t *self, zmsg_t *msg)
+zsync_ftm_msg_set_path (zsync_ftm_msg_t *self, char *format, ...)
+{
+    //  Format path from provided arguments
+    assert (self);
+    va_list argptr;
+    va_start (argptr, format);
+    free (self->path);
+    self->path = zsys_vprintf (format, argptr);
+    va_end (argptr);
+}
+
+
+//  --------------------------------------------------------------------------
+//  Get/set the sequence field
+
+uint64_t
+zsync_ftm_msg_sequence (zsync_ftm_msg_t *self)
 {
     assert (self);
-    if (self->chunk)
-        zmsg_destroy (&self->chunk);
-    self->chunk = msg;
+    return self->sequence;
 }
+
+void
+zsync_ftm_msg_set_sequence (zsync_ftm_msg_t *self, uint64_t sequence)
+{
+    assert (self);
+    self->sequence = sequence;
+}
+
+
+//  --------------------------------------------------------------------------
+//  Get/set the chunk_size field
+
+uint64_t
+zsync_ftm_msg_chunk_size (zsync_ftm_msg_t *self)
+{
+    assert (self);
+    return self->chunk_size;
+}
+
+void
+zsync_ftm_msg_set_chunk_size (zsync_ftm_msg_t *self, uint64_t chunk_size)
+{
+    assert (self);
+    self->chunk_size = chunk_size;
+}
+
+
+//  --------------------------------------------------------------------------
+//  Get/set the offset field
+
+uint64_t
+zsync_ftm_msg_offset (zsync_ftm_msg_t *self)
+{
+    assert (self);
+    return self->offset;
+}
+
+void
+zsync_ftm_msg_set_offset (zsync_ftm_msg_t *self, uint64_t offset)
+{
+    assert (self);
+    self->offset = offset;
+}
+
 
 
 //  --------------------------------------------------------------------------
@@ -1034,8 +1083,8 @@ zsync_ftm_msg_test (bool verbose)
     zsync_ftm_msg_destroy (&copy);
 
     zsync_ftm_msg_set_sender (self, "Life is short but Now lasts for ever");
-    zsync_ftm_msg_path_append (self, "Name: %s", "Brutus");
-    zsync_ftm_msg_path_append (self, "Age: %d", 43);
+    zsync_ftm_msg_paths_append (self, "Name: %s", "Brutus");
+    zsync_ftm_msg_paths_append (self, "Age: %d", 43);
     //  Send twice from same object
     zsync_ftm_msg_send_again (self, output);
     zsync_ftm_msg_send (&self, output);
@@ -1051,9 +1100,9 @@ zsync_ftm_msg_test (bool verbose)
         assert (self);
         
         assert (streq (zsync_ftm_msg_sender (self), "Life is short but Now lasts for ever"));
-        assert (zsync_ftm_msg_path_size (self) == 2);
-        assert (streq (zsync_ftm_msg_path_first (self), "Name: Brutus"));
-        assert (streq (zsync_ftm_msg_path_next (self), "Age: 43"));
+        assert (zsync_ftm_msg_paths_size (self) == 2);
+        assert (streq (zsync_ftm_msg_paths_first (self), "Name: Brutus"));
+        assert (streq (zsync_ftm_msg_paths_next (self), "Age: 43"));
         zsync_ftm_msg_destroy (&self);
     }
     self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_CREDIT);
@@ -1091,8 +1140,10 @@ zsync_ftm_msg_test (bool verbose)
     zsync_ftm_msg_destroy (&copy);
 
     zsync_ftm_msg_set_receiver (self, "Life is short but Now lasts for ever");
-    zsync_ftm_msg_set_chunk (self, zmsg_new ());
-//    zmsg_addstr (zsync_ftm_msg_chunk (self), "Hello, World");
+    zsync_ftm_msg_set_path (self, "Life is short but Now lasts for ever");
+    zsync_ftm_msg_set_sequence (self, 123);
+    zsync_ftm_msg_set_chunk_size (self, 123);
+    zsync_ftm_msg_set_offset (self, 123);
     //  Send twice from same object
     zsync_ftm_msg_send_again (self, output);
     zsync_ftm_msg_send (&self, output);
@@ -1108,7 +1159,10 @@ zsync_ftm_msg_test (bool verbose)
         assert (self);
         
         assert (streq (zsync_ftm_msg_receiver (self), "Life is short but Now lasts for ever"));
-        assert (zmsg_size (zsync_ftm_msg_chunk (self)) == 0);
+        assert (streq (zsync_ftm_msg_path (self), "Life is short but Now lasts for ever"));
+        assert (zsync_ftm_msg_sequence (self) == 123);
+        assert (zsync_ftm_msg_chunk_size (self) == 123);
+        assert (zsync_ftm_msg_offset (self) == 123);
         zsync_ftm_msg_destroy (&self);
     }
     self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_ABORT);
@@ -1119,8 +1173,7 @@ zsync_ftm_msg_test (bool verbose)
     zsync_ftm_msg_destroy (&copy);
 
     zsync_ftm_msg_set_sender (self, "Life is short but Now lasts for ever");
-    zsync_ftm_msg_path_append (self, "Name: %s", "Brutus");
-    zsync_ftm_msg_path_append (self, "Age: %d", 43);
+    zsync_ftm_msg_set_path (self, "Life is short but Now lasts for ever");
     //  Send twice from same object
     zsync_ftm_msg_send_again (self, output);
     zsync_ftm_msg_send (&self, output);
@@ -1136,9 +1189,7 @@ zsync_ftm_msg_test (bool verbose)
         assert (self);
         
         assert (streq (zsync_ftm_msg_sender (self), "Life is short but Now lasts for ever"));
-        assert (zsync_ftm_msg_path_size (self) == 2);
-        assert (streq (zsync_ftm_msg_path_first (self), "Name: Brutus"));
-        assert (streq (zsync_ftm_msg_path_next (self), "Age: 43"));
+        assert (streq (zsync_ftm_msg_path (self), "Life is short but Now lasts for ever"));
         zsync_ftm_msg_destroy (&self);
     }
     self = zsync_ftm_msg_new (ZSYNC_FTM_MSG_TERMINATE);

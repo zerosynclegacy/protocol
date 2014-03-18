@@ -6,6 +6,7 @@
 #include <zyre_event.h>
 #include "../include/zs_fmetadata.h"
 #include "../include/zs_msg.h"
+#include "../include/zsync_msg.h"
 #include "../include/zsync_peer.h"
 #include "../include/zsync_ftmanager.h"
 #include "../include/zsync_credit.h"

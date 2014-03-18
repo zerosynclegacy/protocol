@@ -21,7 +21,7 @@ This is the internal worker protocol for communication with transfer managers.
 
 <message name = "REQUEST" id = "1">
     <field name = "sender" type = "string">UUID that identifies the sender</field>
-    <field name = "path" type = "strings" />
+    <field name = "paths" type = "strings" />
 Sends a list of files requested by sender
 </message>
 
@@ -33,13 +33,16 @@ Sends an approved credit amount by sender
 
 <message name = "CHUNK" id = "3">
     <field name = "receiver" type = "string">UUID that identifies the receiver</field>
-    <field name = "chunk" type = "msg" />
-Sends a encoded chunk to be forwarded to receiver
+    <field name = "path" type = "string">Path of file that the 'chunk' belongs to</field>
+    <field name = "sequence" type = "number" size = "8"></field>
+    <field name = "chunk_size" type = "number" size = "8">Size of the requested chunk in bytes</field>
+    <field name = "offset" type = "number" size = "8">File offset for for the chunk in bytes</field>
+Requests a chunk of 'chunk_size' data from 'path' at 'offset'.
 </message>
 
 <message name = "ABORT" id = "4">
     <field name = "sender" type = "string">UUID that identifies the sender</field>
-    <field name = "path" type = "strings" />
+    <field name = "path" type = "string" />
 Sends a list of files to abort file transfer for sender
 </message>
 

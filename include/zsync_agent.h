@@ -1,8 +1,8 @@
 /* =========================================================================
-    zsync_agent.h - public api for clients
+    zsync.h - public api for clients
 
    -------------------------------------------------------------------------
-   Copyright (c) 2013 Kevin Sapper, Bernhard Finger
+   Copyright (c) 2013-2014 Kevin Sapper
    Copyright other contributors as noted in the AUTHORS file.
    
    This file is part of ZeroSync, see http://zerosync.org.
@@ -29,92 +29,39 @@ extern "C" {
 #endif
 
 // Opaque class structure
-typedef struct _zsync_agent_t zsync_agent_t;
+typedef struct _zsync_t zsync_t;
 
-// Create a new zsync_agent
-zsync_agent_t *
-    zsync_agent_new ();
+// Create a new zsync
+zsync_t *
+    zsync_new ();
 
-// Destroys a zsync_agent
+// Destroys a zsync
 void
-    zsync_agent_destroy (zsync_agent_t **agent);
+    zsync_destroy (zsync_t **agent);
 
-// Starts the protocol execution, returns -1 if a function ptr isn´t set else 0
+// Starts the protocol execution
 int 
-    zsync_agent_start (zsync_agent_t *self);
+    zsync_start (zsync_t *self);
 
-// zsync_agent stop, failed if a function ptr isn´t set
+// zsync stop 
 void
-    zsync_agent_stop (zsync_agent_t *self);
+    zsync_stop (zsync_t *self);
 
 void 
-    zsync_agent_send_request_files (zsync_agent_t *agent, char *sender, zlist_t *list, uint64_t total_bytes);
+    zsync_send_request_files (zsync_t *agent, char *sender, zlist_t *list, uint64_t total_bytes);
 
 void 
-    zsync_agent_send_update (zsync_agent_t *agent, uint64_t state, zlist_t *list);
+    zsync_send_update (zsync_t *agent, uint64_t state, zlist_t *list);
 
 void 
-    zsync_agent_send_abort (zsync_agent_t *agent, char *sender, char *fileToAbort);
+    zsync_send_abort (zsync_t *agent, char *sender, char *fileToAbort);
 
-// Sets the pass_update callback method
-void 
-    zsync_agent_set_pass_update (zsync_agent_t *self, void *ptr);
-
-// Sets the pass_chunk callback method
-void 
-    zsync_agent_set_pass_chunk (zsync_agent_t *self, void *ptr);
-
-// Sets the get_update callback method
-void 
-    zsync_agent_set_get_update (zsync_agent_t *self, void *ptr);
-
-// Sets the get_current_state callback method
-void 
-    zsync_agent_set_get_current_state (zsync_agent_t *self, void *ptr);
-
-// Sets the get_chunk callback method
-void 
-    zsync_agent_set_get_chunk (zsync_agent_t *self, void *ptr);
-
-// Gets the zeromq context
-zctx_t *
-    zsync_agent_ctx (zsync_agent_t *self);
-
-// Gets the Zyre object
-zyre_t *
-    zsync_agent_zyre (zsync_agent_t *self);
-
-// Passes a list with updated files
-void 
-    zsync_agent_pass_update (zsync_agent_t *self, char *sender, zlist_t* fmetadata);
-
-// Passes chunk of a file
-void
-    zsync_agent_pass_chunk (zsync_agent_t *self, zchunk_t *chunk, char *path, uint64_t sequence, uint64_t offset);
-
-// Gets the current state
-uint64_t
-    zsync_agent_current_state (zsync_agent_t *self);
-
-// Gets a list of updates starting by the from state to the current state
-zlist_t *
-    zsync_agent_update (zsync_agent_t *self, uint64_t from_state);
-
-// Gets a list of updates starting by the from state to the current state
-zchunk_t *
-    zsync_agent_chunk (zsync_agent_t *self, char *path, uint64_t chunk_size, uint64_t offset);
-
-// Returns whether the agents has been started or not
 bool
-    zsync_agent_running (zsync_agent_t *self);
-
-// Returns the channel the agent joins
-char *
-    zsync_agent_channel (zsync_agent_t *self);
+    zsync_running (zsync_t *self);
 
 // Selftest this class
 void
-    zsync_agent_test();
+    zsync_test();
 
 #ifdef __cplusplus
 }

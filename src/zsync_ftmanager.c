@@ -132,10 +132,12 @@ s_work_left (zhash_t *self)
 void
 zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
 {
-    zhash_t *peer_requests = zhash_new ();
-    void *agent_pipe = args;
-    zsync_ftm_msg_t *msg;
     int rc;
+    void *agent_pipe = zsocket_new (ctx, ZMQ_PAIR);
+    zsocket_connect (agent_pipe, "inproc://agent");
+    zhash_t *peer_requests = zhash_new ();
+
+    zsync_ftm_msg_t *msg;
 
     printf("[FT] started\n");
     while (true) {
@@ -164,12 +166,12 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
             switch (zsync_ftm_msg_id (msg)) {
                 case ZSYNC_FTM_MSG_REQUEST: 
                 {
-                    char *fpath = zsync_ftm_msg_path_first (msg);
+                    char *fpath = zsync_ftm_msg_paths_first (msg);
                     while (fpath) {
                         // TODO check for duplicates
                         zlist_append (ftrequest->requested_files, zsync_ftfile_new (fpath));
                         printf("[FT] added %s\n", fpath);
-                        fpath = zsync_ftm_msg_path_next (msg);
+                        fpath = zsync_ftm_msg_paths_next (msg);
                     }
                    break;
                 }
@@ -204,13 +206,8 @@ zsync_ftmanager_engine (void *args, zctx_t *ctx, void *pipe)
                 zsync_ftfile_t *file = zlist_first (request->requested_files);
                 // Use agent_api
                 zchunk_t *chunk;
-                // zchunk_t *chunk = zsync_agent_chunk (agent, file->path, CHUNK_SIZE, file->offset);
                 if (chunk) {
-                    zframe_t *data = zframe_new (zchunk_data (chunk), zchunk_size (chunk));
-                    zmsg_t *msg = zmsg_new ();
-                    rc = zs_msg_pack_chunk (msg, file->sequence, file->path, file->offset, data);
-                    assert (rc == 0);
-                    zsync_ftm_msg_send_chunk (pipe, key, msg);
+                    zsync_ftm_msg_send_chunk (pipe, key, file->path, file->sequence, CHUNK_SIZE, file->offset);
                     // Increment for next chunk
                     file->sequence++;
                     file->offset += CHUNK_SIZE;

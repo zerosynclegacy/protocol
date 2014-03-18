@@ -21,8 +21,8 @@
    =========================================================================
 */
 
-#ifndef __ZSYNC_MSG_H_INCLUDED__
-#define __ZSYNC_MSG_H_INCLUDED__
+#ifndef __ZS_MSG_H_INCLUDED__
+#define __ZS_MSG_H_INCLUDED__
  
 #ifdef __cplusplus
 extern "C" {
